@@ -1,73 +1,44 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { Asana, VisualLayerType, MuscleActivation, BodySystemType, ChakraInfo } from '../../types';
+import { Asana } from '../../types';
 import { createDetailedHumanModel, HumanRigResult } from './detailedHumanModel';
-import { loadGLTFModel } from './gltfModelLoader';
 
-interface YogaHumanCanvasProps {
+export interface YogaHumanCanvasProps {
   asana?: Asana;
   currentStepIndex?: number;
-  activeLayer: VisualLayerType;
+  scrubberProgress?: number; // 0 to 100
+  showAnatomyOverlay?: boolean;
+  showSkeleton?: boolean;
+  showAlignmentGrid?: boolean;
+  showProps?: boolean;
+  viewMode?: 'camera' | 'bone' | 'muscle';
   selectedMuscleId?: string | null;
-  onSelectMuscle?: (muscle: MuscleActivation | null) => void;
-  selectedChakraId?: string | null;
-  onSelectChakra?: (chakra: ChakraInfo | null) => void;
-  activeBodySystem?: BodySystemType;
-  isBreathingActive?: boolean;
-  breathPhaseIndex?: number; // 0: inhale, 1: hold, 2: exhale, 3: suspend
-  autoRotate?: boolean;
+  cameraPreset?: '360' | 'orbit' | 'front' | 'side' | 'back' | 'top';
+  zoomLevel?: number;
   isDark?: boolean;
   className?: string;
-  scrollProgress?: number; // 0 to 1 for scroll-driven interpolation
-  customPoseParams?: Asana['poseParameters'];
-  allowManualControl?: boolean;
-  showHUDPins?: boolean;
-  showOrbitalTelemetry?: boolean;
-  cameraViewPreset?: '360' | 'orbit' | 'front' | 'side' | 'back' | 'top' | 'sagittal' | 'coronal' | 'transverse' | 'spine';
-  zoomLevel?: number;
-  customModelSource?: string | File | null;
   onCameraMove?: () => void;
-}
-
-interface HUDPin {
-  id: string;
-  name: string;
-  role: string;
-  percentage: number;
-  worldPos: THREE.Vector3;
-  screenX: number;
-  screenY: number;
-  visible: boolean;
 }
 
 export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   asana,
-  currentStepIndex = 0,
-  activeLayer = 'skin',
+  currentStepIndex = 2, // Step 3/6 default (Warrior II)
+  scrubberProgress = 40,
+  showAnatomyOverlay = true,
+  showSkeleton = true,
+  showAlignmentGrid = true,
+  showProps = false,
+  viewMode = 'camera',
   selectedMuscleId,
-  onSelectMuscle,
-  selectedChakraId,
-  onSelectChakra,
-  activeBodySystem = 'musculoskeletal',
-  isBreathingActive = false,
-  breathPhaseIndex = 0,
-  autoRotate = false,
-  isDark = false,
-  className = '',
-  scrollProgress,
-  customPoseParams,
-  allowManualControl = true,
-  showHUDPins = true,
-  showOrbitalTelemetry = false,
-  cameraViewPreset = 'orbit',
+  cameraPreset = 'orbit',
   zoomLevel = 1.0,
-  customModelSource,
+  isDark = true,
+  className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const customModelGroupRef = useRef<THREE.Group | null>(null);
-  
-  // Three.js instance state
+
+  // Three.js instances
   const threeRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
@@ -75,55 +46,46 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     humanGroup: THREE.Group;
     bodyParts: { [key: string]: THREE.Object3D };
     muscleMeshes: { [key: string]: THREE.Mesh };
-    skinMeshes: THREE.Mesh[];
-    chakraMeshes: { [key: string]: THREE.Group };
+    heatmapMeshes: { [key: string]: THREE.Mesh };
     skeletonGroup: THREE.Group;
-    breathMesh: THREE.Mesh;
-    systemParticles: THREE.Points;
-    cosmicParticles: THREE.Points;
-    orbitalRingsGroup: THREE.Group;
-    radarFloorGrid: THREE.Group;
-    bioLinesGroup: THREE.Group;
-    lights: {
-      ambient: THREE.AmbientLight;
-      directional: THREE.DirectionalLight;
-      point: THREE.PointLight;
-      rim: THREE.DirectionalLight;
-      fill: THREE.DirectionalLight;
-    };
+    skinMeshes: THREE.Mesh[];
+    clothingMeshes: THREE.Mesh[];
+    alignmentGridGroup: THREE.Group;
+    verticalPlumbLine: THREE.Line;
+    horizontalArmAxis: THREE.Line;
+    platformMesh: THREE.Mesh;
+    matMesh: THREE.Mesh;
+    propBlockMesh: THREE.Mesh;
     targetRotation: { x: number; y: number };
     currentRotation: { x: number; y: number };
     targetCameraPos: THREE.Vector3;
     currentCameraPos: THREE.Vector3;
     isDragging: boolean;
+    isPanning: boolean;
     previousMousePosition: { x: number; y: number };
     targetJoints: { [key: string]: THREE.Euler };
     currentJoints: { [key: string]: THREE.Euler };
     targetElevation: number;
     currentElevation: number;
-    raycaster: THREE.Raycaster;
-    mouse: THREE.Vector2;
-    activeAsanaId: string;
   } | null>(null);
 
-  const [hudPins, setHudPins] = useState<HUDPin[]>([]);
-
-  // Initialize Three.js Scene
+  // Initialize Three.js
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
 
     const container = containerRef.current;
-    const width = container.clientWidth || 600;
-    const height = container.clientHeight || 600;
+    const width = container.clientWidth || 900;
+    const height = container.clientHeight || 700;
 
     // 1. Scene
     const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0c0e12);
 
-    // 2. Camera
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-    camera.position.set(0, 0.95, 3.1);
+    // 2. Camera (Cinematic 40° FOV, angled slightly to capture model, platform, and studio)
+    const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
+    camera.position.set(0.65, 1.25, 3.4);
 
-    // 3. Renderer with high color fidelity
+    // 3. Renderer with high PBR fidelity
     const renderer = new THREE.WebGLRenderer({
       canvas: canvasRef.current,
       antialias: true,
@@ -135,278 +97,408 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.2;
 
-    // 4. Studio Lighting Rig (Cinematic Key, Soft Fill, Blue Rim, and Floor Bounce)
-    const ambient = new THREE.AmbientLight(0xfff8f0, 1.3);
-    scene.add(ambient);
+    // 4. Studio Environment Lighting
+    const ambientLight = new THREE.AmbientLight(0xfff3e0, 1.4);
+    scene.add(ambientLight);
 
-    const directional = new THREE.DirectionalLight(0xfff2e6, 2.2);
-    directional.position.set(3.5, 4.5, 3.5);
-    directional.castShadow = true;
-    directional.shadow.mapSize.width = 2048;
-    directional.shadow.mapSize.height = 2048;
-    directional.shadow.bias = -0.0004;
-    scene.add(directional);
+    // Main Sun Key Light (coming through window from top right)
+    const sunLight = new THREE.DirectionalLight(0xfff5ea, 2.6);
+    sunLight.position.set(4.5, 5.5, 3.8);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.bias = -0.0003;
+    sunLight.shadow.camera.near = 0.5;
+    sunLight.shadow.camera.far = 15;
+    sunLight.shadow.camera.left = -3;
+    sunLight.shadow.camera.right = 3;
+    sunLight.shadow.camera.top = 3;
+    sunLight.shadow.camera.bottom = -3;
+    scene.add(sunLight);
 
-    const fill = new THREE.DirectionalLight(0x90cdf4, 0.9);
-    fill.position.set(-3.5, 2.0, 2.0);
-    scene.add(fill);
+    // Soft Blue-Cyan Sky Fill Light
+    const skyFill = new THREE.DirectionalLight(0x7dd3fc, 0.9);
+    skyFill.position.set(-4.5, 3.2, 2.0);
+    scene.add(skyFill);
 
-    const rim = new THREE.DirectionalLight(0x38bdf8, 1.8);
-    rim.position.set(-3, 3.5, -3.5);
-    scene.add(rim);
+    // Golden Rim Light (accents anatomy contours)
+    const goldRim = new THREE.DirectionalLight(0xd4af37, 2.2);
+    goldRim.position.set(-3.2, 4.0, -3.5);
+    scene.add(goldRim);
 
-    const point = new THREE.PointLight(0xd9ae29, 1.2, 8);
-    point.position.set(0, 0.2, -1.5);
-    scene.add(point);
+    // Soft Warm Studio Floor Bounce Light
+    const bounceLight = new THREE.PointLight(0xffedd5, 1.1, 10);
+    bounceLight.position.set(0, 0.2, 1.5);
+    scene.add(bounceLight);
 
-    // 5. Anatomical Sculpted Human Rig Setup
-    const humanRig: HumanRigResult = createDetailedHumanModel();
-    const humanGroup = humanRig.humanGroup;
-    scene.add(humanGroup);
+    // 5. Studio Hardwood Floor
+    function createWoodTexture(): THREE.CanvasTexture {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Warm natural honey-oak planks
+        ctx.fillStyle = '#6b4423';
+        ctx.fillRect(0, 0, 512, 512);
 
-    const bodyParts = humanRig.bodyParts;
-    const muscleMeshes = humanRig.muscleMeshes;
-    const skinMeshes = humanRig.skinMeshes;
-    const chakraMeshes: { [key: string]: THREE.Group } = {};
-    const skeletonGroup = new THREE.Group();
-    humanGroup.add(skeletonGroup);
+        for (let i = 0; i < 512; i += 64) {
+          ctx.strokeStyle = '#4a2e14';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(512, i);
+          ctx.stroke();
 
-    const bioLinesGroup = new THREE.Group();
-    humanGroup.add(bioLinesGroup);
+          // Subtle wood grains
+          ctx.fillStyle = i % 128 === 0 ? '#7a4e29' : '#5e3a1b';
+          ctx.fillRect(0, i + 2, 512, 60);
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(6, 6);
+      return tex;
+    }
 
-    const boneMat = humanRig.materials.bone;
-    const pelvis = bodyParts.pelvis as THREE.Group;
-    const chest = bodyParts.chest as THREE.Group;
+    const studioFloorMat = new THREE.MeshStandardMaterial({
+      color: 0x5a381e,
+      map: createWoodTexture(),
+      roughness: 0.45,
+      metalness: 0.05,
+    });
+    const studioFloor = new THREE.Mesh(new THREE.PlaneGeometry(16, 16), studioFloorMat);
+    studioFloor.rotation.x = -Math.PI / 2;
+    studioFloor.position.y = -0.01;
+    studioFloor.receiveShadow = true;
+    scene.add(studioFloor);
 
-    // --- G. SKELETON / VERTEBRAL COLUMN ---
-    const spineBone = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.032, 0.68, 12), boneMat);
-    spineBone.position.set(0, 0.36, -0.05);
-    pelvis.add(spineBone);
-    skeletonGroup.add(spineBone);
+    // Studio Background Wall with Large Floor-to-Ceiling Windows
+    const studioWall = new THREE.Mesh(
+      new THREE.PlaneGeometry(16, 9),
+      new THREE.MeshStandardMaterial({ color: 0x181a20, roughness: 0.9 })
+    );
+    studioWall.position.set(0, 4.4, -6.5);
+    scene.add(studioWall);
 
-    // --- H. 7 CHAKRA ENERGY VORTICES ---
-    const chakraDefs = [
-      { id: 'muladhara', color: 0xe53e3e, y: 0.0, label: 'Muladhara (Root)' },
-      { id: 'svadhisthana', color: 0xed8936, y: 0.16, label: 'Svadhisthana (Sacral)' },
-      { id: 'manipura', color: 0xd9ae29, y: 0.32, label: 'Manipura (Solar)' },
-      { id: 'anahata', color: 0x38a169, y: 0.48, label: 'Anahata (Heart)' },
-      { id: 'vishuddha', color: 0x3182ce, y: 0.62, label: 'Vishuddha (Throat)' },
-      { id: 'ajna', color: 0x553c9a, y: 0.74, label: 'Ajna (Third Eye)' },
-      { id: 'sahasrara', color: 0x805ad5, y: 0.88, label: 'Sahasrara (Crown)' },
-    ];
+    // Panoramic Window Daylight Glow & Mountain Vista Backdrop
+    function createSkylineTexture(): THREE.CanvasTexture {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, 256);
+        skyGrad.addColorStop(0, '#bae6fd');
+        skyGrad.addColorStop(0.5, '#e0f2fe');
+        skyGrad.addColorStop(1, '#fef3c7');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, 512, 256);
 
-    chakraDefs.forEach((c) => {
-      const cGroup = new THREE.Group();
-      cGroup.position.set(0, c.y, 0);
+        // Mountain Silhouettes
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.moveTo(0, 180);
+        ctx.lineTo(80, 110);
+        ctx.lineTo(160, 160);
+        ctx.lineTo(260, 90);
+        ctx.lineTo(380, 170);
+        ctx.lineTo(480, 120);
+        ctx.lineTo(512, 180);
+        ctx.lineTo(512, 256);
+        ctx.lineTo(0, 256);
+        ctx.fill();
 
-      // Core glowing energy sphere
-      const orbMat = new THREE.MeshStandardMaterial({
-        color: c.color,
-        emissive: c.color,
-        emissiveIntensity: 1.5,
-        roughness: 0.15,
-        metalness: 0.85,
-      });
-      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.048, 20, 20), orbMat);
-      cGroup.add(orb);
+        // Lush green trees
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.moveTo(0, 200);
+        ctx.lineTo(120, 160);
+        ctx.lineTo(300, 210);
+        ctx.lineTo(440, 170);
+        ctx.lineTo(512, 210);
+        ctx.lineTo(512, 256);
+        ctx.lineTo(0, 256);
+        ctx.fill();
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
 
-      // Orbiting Torus Ring
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: c.color,
-        transparent: true,
-        opacity: 0.7,
-        wireframe: true,
-      });
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.012, 10, 28), ringMat);
-      ring.rotation.x = Math.PI / 2;
-      cGroup.add(ring);
+    const windowBackdrop = new THREE.Mesh(
+      new THREE.PlaneGeometry(12, 5.5),
+      new THREE.MeshBasicMaterial({ map: createSkylineTexture() })
+    );
+    windowBackdrop.position.set(0, 3.2, -6.3);
+    scene.add(windowBackdrop);
 
-      cGroup.name = c.id;
-      cGroup.visible = false;
-      pelvis.add(cGroup);
-      chakraMeshes[c.id] = cGroup;
+    // Window Black Mullions Frame
+    const windowFrame = new THREE.Group();
+    windowFrame.position.set(0, 3.2, -6.2);
+    for (let x of [-4, -2, 0, 2, 4]) {
+      const mullion = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 5.5, 0.08),
+        new THREE.MeshStandardMaterial({ color: 0x1e2229 })
+      );
+      mullion.position.set(x, 0, 0);
+      windowFrame.add(mullion);
+    }
+    const horizontalMullion = new THREE.Mesh(
+      new THREE.BoxGeometry(12, 0.06, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x1e2229 })
+    );
+    horizontalMullion.position.set(0, 0, 0);
+    windowFrame.add(horizontalMullion);
+    scene.add(windowFrame);
+
+    // 6. ASANA 3D PLATFORM - Dedicated Raised Wooden Analysis Stage
+    const platformWidth = 2.5;
+    const platformDepth = 1.7;
+    const platformHeight = 0.12;
+
+    // Platform Wood Texture
+    function createPlatformWoodTexture(): THREE.CanvasTexture {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#422814';
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Rich polished grain
+        for (let i = 0; i < 512; i += 4) {
+          ctx.strokeStyle = i % 16 === 0 ? '#2e1b0c' : '#4d3019';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(512, i + Math.sin(i * 0.02) * 8);
+          ctx.stroke();
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      return tex;
+    }
+
+    const platformMat = new THREE.MeshStandardMaterial({
+      color: 0x3d2311,
+      map: createPlatformWoodTexture(),
+      roughness: 0.35,
+      metalness: 0.1,
     });
 
-    // --- I. BREATH VOLUME HALO ---
-    const breathGeom = new THREE.SphereGeometry(0.42, 28, 28);
-    const breathMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.0,
-      roughness: 0.1,
+    const platformMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(platformWidth, platformHeight, platformDepth),
+      platformMat
+    );
+    platformMesh.position.set(0, platformHeight / 2, 0);
+    platformMesh.castShadow = true;
+    platformMesh.receiveShadow = true;
+    scene.add(platformMesh);
+
+    // Gold Bevel Edge Trim on Platform
+    const goldTrimMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      roughness: 0.2,
       metalness: 0.9,
-      wireframe: true,
+      emissive: 0x997a15,
+      emissiveIntensity: 0.3,
     });
-    const breathMesh = new THREE.Mesh(breathGeom, breathMat);
-    breathMesh.position.set(0, 0.18, 0);
-    chest.add(breathMesh);
+    const platformTrim = new THREE.Mesh(
+      new THREE.BoxGeometry(platformWidth + 0.015, 0.012, platformDepth + 0.015),
+      goldTrimMat
+    );
+    platformTrim.position.set(0, platformHeight, 0);
+    scene.add(platformTrim);
 
-    // --- J. BODY SYSTEM PARTICLE FLOW ---
-    const particleCount = 240;
-    const particleGeom = new THREE.BufferGeometry();
-    const particlePositions = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount; i++) {
-      particlePositions[i * 3] = (Math.random() - 0.5) * 0.48;
-      particlePositions[i * 3 + 1] = (Math.random() - 0.2) * 1.6;
-      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 0.38;
+    // Front Face Engraved Branding: ASANA 3D PLATFORM
+    function createBrandingTexture(): THREE.CanvasTexture {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, 512, 128);
+
+        // Golden geometric folded logo
+        ctx.strokeStyle = '#d4af37';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(130, 85);
+        ctx.lineTo(155, 35);
+        ctx.lineTo(180, 85);
+        ctx.lineTo(142, 60);
+        ctx.lineTo(168, 60);
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = '#d4af37';
+        ctx.font = 'bold 34px "Outfit", "Inter", sans-serif';
+        ctx.letterSpacing = '4px';
+        ctx.fillText('ASANA', 200, 62);
+
+        ctx.fillStyle = '#e5c158';
+        ctx.font = '500 18px "Inter", sans-serif';
+        ctx.letterSpacing = '6px';
+        ctx.fillText('3D PLATFORM', 200, 90);
+      }
+      return new THREE.CanvasTexture(canvas);
     }
-    particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMat = new THREE.PointsMaterial({
-      color: 0xd9ae29,
-      size: 0.03,
+
+    const brandingMat = new THREE.MeshBasicMaterial({
+      map: createBrandingTexture(),
       transparent: true,
-      opacity: 0.0,
+      side: THREE.DoubleSide,
     });
-    const systemParticles = new THREE.Points(particleGeom, particleMat);
-    humanGroup.add(systemParticles);
+    const brandingSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.08), brandingMat);
+    brandingSign.position.set(0, platformHeight / 2, platformDepth / 2 + 0.002);
+    scene.add(brandingSign);
 
-    // --- K. COSMIC PRANA STARDUST PARTICLES ---
-    const cosmicCount = 380;
-    const cosmicGeom = new THREE.BufferGeometry();
-    const cosmicPos = new Float32Array(cosmicCount * 3);
-    for (let i = 0; i < cosmicCount; i++) {
-      cosmicPos[i * 3] = (Math.random() - 0.5) * 7.5;
-      cosmicPos[i * 3 + 1] = (Math.random() - 0.3) * 6.5;
-      cosmicPos[i * 3 + 2] = (Math.random() - 0.5) * 7.5;
+    // 7. Dark Yoga Mat on top of the Platform
+    const matWidth = 1.95;
+    const matDepth = 0.76;
+    const matHeight = 0.008;
+
+    const matMat = new THREE.MeshStandardMaterial({
+      color: 0x181c24,
+      roughness: 0.88,
+      metalness: 0.05,
+    });
+    const matMesh = new THREE.Mesh(new THREE.BoxGeometry(matWidth, matHeight, matDepth), matMat);
+    matMesh.position.set(0, platformHeight + matHeight / 2, 0);
+    matMesh.receiveShadow = true;
+    scene.add(matMesh);
+
+    // 8. 3D BIOMECHANICAL ALIGNMENT GRID & LASER AXES
+    const alignmentGridGroup = new THREE.Group();
+    alignmentGridGroup.position.set(0, platformHeight + matHeight + 0.001, 0);
+    scene.add(alignmentGridGroup);
+
+    // Mat Gold Grid Laser Lines
+    const gridLineMat = new THREE.LineBasicMaterial({
+      color: 0xd4af37,
+      transparent: true,
+      opacity: 0.75,
+      linewidth: 2,
+    });
+
+    // Longitudinal center plumb line
+    const centerLineGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-matWidth / 2 + 0.08, 0, 0),
+      new THREE.Vector3(matWidth / 2 - 0.08, 0, 0),
+    ]);
+    alignmentGridGroup.add(new THREE.Line(centerLineGeom, gridLineMat));
+
+    // Lateral cross axis
+    const crossLineGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, -matDepth / 2 + 0.05),
+      new THREE.Vector3(0, 0, matDepth / 2 - 0.05),
+    ]);
+    alignmentGridGroup.add(new THREE.Line(crossLineGeom, gridLineMat));
+
+    // Stance width calibration lines (45° angle markers for Warrior II foot tracking)
+    for (let offset of [-0.65, -0.35, 0.35, 0.65]) {
+      const markGeom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(offset, 0, -0.22),
+        new THREE.Vector3(offset, 0, 0.22),
+      ]);
+      alignmentGridGroup.add(new THREE.Line(markGeom, gridLineMat));
     }
-    cosmicGeom.setAttribute('position', new THREE.BufferAttribute(cosmicPos, 3));
-    const cosmicMat = new THREE.PointsMaterial({
-      color: 0xd9ae29,
-      size: 0.024,
+
+    // Concentric Center Balance Rings
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xd4af37,
+      side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.45,
     });
-    const cosmicParticles = new THREE.Points(cosmicGeom, cosmicMat);
-    scene.add(cosmicParticles);
+    const centerRing = new THREE.Mesh(new THREE.RingGeometry(0.18, 0.188, 36), ringMat);
+    centerRing.rotation.x = -Math.PI / 2;
+    alignmentGridGroup.add(centerRing);
 
-    // --- L. ORBITAL TELEMETRY GIMBAL RINGS (Zajno Space-Station HUD) ---
-    const orbitalRingsGroup = new THREE.Group();
-    orbitalRingsGroup.position.set(0, 0.9, 0);
-    scene.add(orbitalRingsGroup);
-
-    // Ring 1: Equatorial Gold Orbit
-    const ring1Geom = new THREE.RingGeometry(1.28, 1.295, 64);
-    const ring1Mat = new THREE.MeshBasicMaterial({
-      color: 0xd9ae29,
-      side: THREE.DoubleSide,
+    // Vertical 3D Laser Plumb Line (Passes through head, spine, pelvis to ground)
+    const vertPlumbGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 2.1, 0),
+    ]);
+    const vertPlumbMat = new THREE.LineBasicMaterial({
+      color: 0xffd700,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.85,
     });
-    const ring1 = new THREE.Mesh(ring1Geom, ring1Mat);
-    ring1.rotation.x = Math.PI / 2;
-    orbitalRingsGroup.add(ring1);
+    const verticalPlumbLine = new THREE.Line(vertPlumbGeom, vertPlumbMat);
+    alignmentGridGroup.add(verticalPlumbLine);
 
-    // Ring 2: Tilted Orbital Axis (23.5° inclination)
-    const ring2Geom = new THREE.TorusGeometry(1.48, 0.006, 8, 80);
-    const ring2Mat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+    // Horizontal 3D Laser Arm Axis (Spans Warrior II outstretched arms)
+    const horizArmGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-1.15, 1.42, 0),
+      new THREE.Vector3(1.15, 1.42, 0),
+    ]);
+    const horizArmMat = new THREE.LineBasicMaterial({
+      color: 0xffd700,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.85,
     });
-    const ring2 = new THREE.Mesh(ring2Geom, ring2Mat);
-    ring2.rotation.x = Math.PI / 3;
-    ring2.rotation.y = Math.PI / 6;
-    orbitalRingsGroup.add(ring2);
+    const horizontalArmAxis = new THREE.Line(horizArmGeom, horizArmMat);
+    alignmentGridGroup.add(horizontalArmAxis);
 
-    // Satellite Beacon on Tilted Orbit
-    const beaconMat = new THREE.MeshStandardMaterial({
-      color: 0x00e5ff,
-      emissive: 0x00e5ff,
-      emissiveIntensity: 1.5,
+    // 9. Interactive Yoga Prop Block
+    const blockMat = new THREE.MeshStandardMaterial({
+      color: 0xb48a56, // Natural cork
+      roughness: 0.75,
+      metalness: 0.05,
     });
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 16), beaconMat);
-    beacon.position.set(1.48, 0, 0);
-    ring2.add(beacon);
+    const propBlockMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.08), blockMat);
+    propBlockMesh.position.set(0.48, platformHeight + matHeight + 0.11, 0.22);
+    propBlockMesh.castShadow = true;
+    propBlockMesh.receiveShadow = true;
+    propBlockMesh.visible = false;
+    scene.add(propBlockMesh);
 
-    // Ring 3: Inner Vertical Meridian Ring
-    const ring3Geom = new THREE.TorusGeometry(1.15, 0.004, 6, 64);
-    const ring3Mat = new THREE.MeshBasicMaterial({
-      color: 0xd9ae29,
-      transparent: true,
-      opacity: 0.22,
-    });
-    const ring3 = new THREE.Mesh(ring3Geom, ring3Mat);
-    orbitalRingsGroup.add(ring3);
+    // 10. Anatomical Human Rig Model
+    const humanRig: HumanRigResult = createDetailedHumanModel();
+    const humanGroup = humanRig.humanGroup;
+    humanGroup.position.set(0, platformHeight + matHeight, 0);
+    scene.add(humanGroup);
 
-    // --- M. RADAR FLOOR GRID & CONCENTRIC RANGE RINGS ---
-    const radarFloorGrid = new THREE.Group();
-    radarFloorGrid.position.set(0, -0.015, 0);
-    scene.add(radarFloorGrid);
-
-    [0.5, 0.95, 1.45, 1.95].forEach((radius, idx) => {
-      const circleGeom = new THREE.RingGeometry(radius, radius + 0.008, 48);
-      const circleMat = new THREE.MeshBasicMaterial({
-        color: idx === 1 ? 0xd9ae29 : 0x00381f,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: idx === 1 ? 0.35 : 0.18,
-      });
-      const circle = new THREE.Mesh(circleGeom, circleMat);
-      circle.rotation.x = -Math.PI / 2;
-      radarFloorGrid.add(circle);
-    });
-
-    // Radial Crosshair Lines
-    const lineMat = new THREE.LineBasicMaterial({ color: 0xd9ae29, transparent: true, opacity: 0.2 });
-    const crossPoints = [
-      new THREE.Vector3(-2.1, 0, 0), new THREE.Vector3(2.1, 0, 0),
-      new THREE.Vector3(0, 0, -2.1), new THREE.Vector3(0, 0, 2.1),
-    ];
-    const crossGeom = new THREE.BufferGeometry().setFromPoints(crossPoints);
-    const crossLines = new THREE.LineSegments(crossGeom, lineMat);
-    radarFloorGrid.add(crossLines);
-
-    // Floor Shadow Disc
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x001a0e,
-      transparent: true,
-      opacity: 0.3,
-    });
-    const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(0.85, 36), shadowMat);
-    shadowDisc.rotation.x = -Math.PI / 2;
-    shadowDisc.position.y = -0.02;
-    scene.add(shadowDisc);
-
-    // Save Instance References
+    // Store references
     threeRef.current = {
       scene,
       camera,
       renderer,
       humanGroup,
-      bodyParts,
-      muscleMeshes,
-      skinMeshes,
-      chakraMeshes,
-      skeletonGroup,
-      breathMesh,
-      systemParticles,
-      cosmicParticles,
-      orbitalRingsGroup,
-      radarFloorGrid,
-      bioLinesGroup,
-      lights: { ambient, directional, point, rim, fill },
-      targetRotation: { x: 0, y: 0 },
-      currentRotation: { x: 0, y: 0 },
-      targetCameraPos: new THREE.Vector3(0, 0.95, 3.1),
-      currentCameraPos: new THREE.Vector3(0, 0.95, 3.1),
+      bodyParts: humanRig.bodyParts,
+      muscleMeshes: humanRig.muscleMeshes,
+      heatmapMeshes: humanRig.heatmapMeshes,
+      skeletonGroup: humanRig.skeletonGroup,
+      skinMeshes: humanRig.skinMeshes,
+      clothingMeshes: humanRig.clothingMeshes,
+      alignmentGridGroup,
+      verticalPlumbLine,
+      horizontalArmAxis,
+      platformMesh,
+      matMesh,
+      propBlockMesh,
+      targetRotation: { x: 0, y: 0.15 },
+      currentRotation: { x: 0, y: 0.15 },
+      targetCameraPos: new THREE.Vector3(0.65, 1.25, 3.4),
+      currentCameraPos: new THREE.Vector3(0.65, 1.25, 3.4),
       isDragging: false,
+      isPanning: false,
       previousMousePosition: { x: 0, y: 0 },
       targetJoints: {},
       currentJoints: {},
       targetElevation: 0,
       currentElevation: 0,
-      raycaster: new THREE.Raycaster(),
-      mouse: new THREE.Vector2(),
-      activeAsanaId: asana?.id || 'tadasana',
     };
 
     // Resize Handler
     const handleResize = () => {
       if (!containerRef.current || !threeRef.current) return;
-      const w = containerRef.current.clientWidth || 600;
-      const h = containerRef.current.clientHeight || 600;
+      const w = containerRef.current.clientWidth || 900;
+      const h = containerRef.current.clientHeight || 700;
       threeRef.current.camera.aspect = w / h;
       threeRef.current.camera.updateProjectionMatrix();
       threeRef.current.renderer.setSize(w, h);
@@ -414,21 +506,16 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
     window.addEventListener('resize', handleResize);
 
-    // 8. Animation & Render Loop
-    let animationFrameId: number;
+    // 11. Render Loop
+    let animId: number;
     let clock = new THREE.Clock();
 
     const animate = () => {
-      animationFrameId = requestAnimationFrame(animate);
+      animId = requestAnimationFrame(animate);
       const state = threeRef.current;
       if (!state) return;
 
-      const elapsedTime = clock.getElapsedTime();
-
-      // Auto-Rotation
-      if (autoRotate && !state.isDragging) {
-        state.targetRotation.y += 0.007;
-      }
+      const delta = clock.getDelta();
 
       // Smooth Rotation Damping
       state.currentRotation.x += (state.targetRotation.x - state.currentRotation.x) * 0.08;
@@ -437,116 +524,19 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       state.humanGroup.rotation.x = state.currentRotation.x;
 
       // Smooth Camera Damping
-      state.currentCameraPos.lerp(state.targetCameraPos, 0.06);
+      state.currentCameraPos.lerp(state.targetCameraPos, 0.07);
       state.camera.position.copy(state.currentCameraPos);
-      state.camera.lookAt(0, 0.85, 0);
-
-      // Smooth Elevation Damping
-      state.currentElevation += (state.targetElevation - state.currentElevation) * 0.08;
-      state.humanGroup.position.y = state.currentElevation;
-
-      // Animate Chakras
-      Object.entries(state.chakraMeshes).forEach(([, group]) => {
-        const cGroup = group as THREE.Group;
-        if (cGroup && cGroup.visible) {
-          const ring = cGroup.children[1] as THREE.Mesh;
-          if (ring) {
-            ring.rotation.z += 0.035;
-            const pulse = 1 + Math.sin(elapsedTime * 3.5 + cGroup.position.y * 5) * 0.18;
-            ring.scale.set(pulse, pulse, pulse);
-          }
-        }
-      });
-
-      // Animate Breath Halo
-      if (isBreathingActive && state.breathMesh.material) {
-        const mat = state.breathMesh.material as THREE.MeshStandardMaterial;
-        const breathScale = 1.0 + Math.sin(elapsedTime * 1.6) * 0.28;
-        state.breathMesh.scale.set(breathScale, breathScale * 1.12, breathScale);
-        mat.opacity = 0.45 + Math.sin(elapsedTime * 1.6) * 0.35;
-      }
-
-      // Animate Particle Flows
-      if (state.systemParticles.visible) {
-        const posAttr = state.systemParticles.geometry.attributes.position as THREE.BufferAttribute;
-        const posArray = posAttr.array as Float32Array;
-        for (let i = 0; i < posArray.length; i += 3) {
-          posArray[i + 1] += 0.005;
-          if (posArray[i + 1] > 1.85) {
-            posArray[i + 1] = 0.05;
-          }
-        }
-        posAttr.needsUpdate = true;
-      }
-
-      // Animate 3D Orbital Telemetry Rings (Zajno Space-Station aesthetic)
-      if (state.orbitalRingsGroup) {
-        state.orbitalRingsGroup.visible = showOrbitalTelemetry;
-        state.orbitalRingsGroup.rotation.y = elapsedTime * 0.12;
-        const tiltedRing = state.orbitalRingsGroup.children[1];
-        if (tiltedRing) {
-          tiltedRing.rotation.z = -elapsedTime * 0.18;
-        }
-      }
-
-      // Animate Cosmic Stardust Drift
-      if (state.cosmicParticles) {
-        state.cosmicParticles.rotation.y = elapsedTime * 0.02;
-        state.cosmicParticles.rotation.x = Math.sin(elapsedTime * 0.05) * 0.04;
-      }
-
-      // Animate Radar Floor
-      if (state.radarFloorGrid) {
-        state.radarFloorGrid.visible = showOrbitalTelemetry;
-      }
+      state.camera.lookAt(0, 0.88, 0);
 
       // Smooth Joint Interpolation
       Object.entries(state.targetJoints).forEach(([partName, targetEuler]) => {
         const part = state.bodyParts[partName];
-        const euler = targetEuler as THREE.Euler;
-        if (part && euler) {
-          part.rotation.x += (euler.x - part.rotation.x) * 0.085;
-          part.rotation.y += (euler.y - part.rotation.y) * 0.085;
-          part.rotation.z += (euler.z - part.rotation.z) * 0.085;
+        if (part) {
+          part.rotation.x += (targetEuler.x - part.rotation.x) * 0.1;
+          part.rotation.y += (targetEuler.y - part.rotation.y) * 0.1;
+          part.rotation.z += (targetEuler.z - part.rotation.z) * 0.1;
         }
       });
-
-      // Project HUD 3D Pins to Screen Space
-      if (containerRef.current && asana && asana.muscles && asana.muscles.length > 0) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const updatedPins: HUDPin[] = [];
-
-        asana.muscles.forEach((muscle) => {
-          const worldV = new THREE.Vector3(
-            muscle.position3D[0],
-            muscle.position3D[1] + state.currentElevation,
-            muscle.position3D[2]
-          );
-          // Apply humanGroup rotation
-          worldV.applyEuler(new THREE.Euler(state.currentRotation.x, state.currentRotation.y, 0));
-
-          const projected = worldV.clone().project(state.camera);
-          const isFacingCamera = projected.z < 1.0;
-
-          if (isFacingCamera) {
-            const screenX = ((projected.x + 1) / 2) * rect.width;
-            const screenY = ((-projected.y + 1) / 2) * rect.height;
-
-            updatedPins.push({
-              id: muscle.id,
-              name: muscle.name,
-              role: muscle.role,
-              percentage: muscle.percentage,
-              worldPos: worldV,
-              screenX,
-              screenY,
-              visible: true,
-            });
-          }
-        });
-
-        setHudPins(updatedPins);
-      }
 
       state.renderer.render(state.scene, state.camera);
     };
@@ -555,328 +545,179 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationFrameId);
+      cancelAnimationFrame(animId);
       renderer.dispose();
     };
   }, []);
 
-  // Update Theme Lighting
-  useEffect(() => {
-    const state = threeRef.current;
-    if (!state) return;
-    if (isDark) {
-      state.lights.ambient.intensity = 1.1;
-      state.lights.directional.color.setHex(0xffffff);
-      state.lights.rim.color.setHex(0x38bdf8);
-      state.lights.fill.color.setHex(0x1e3a8a);
-    } else {
-      state.lights.ambient.intensity = 1.35;
-      state.lights.directional.color.setHex(0xfff7ed);
-      state.lights.rim.color.setHex(0x0284c7);
-      state.lights.fill.color.setHex(0xbae6fd);
-    }
-  }, [isDark]);
-
-  // Update Layer Visualization
+  // Update Visual Layers (Anatomy Heatmap, Skeleton, Alignment Grid, Props, ViewMode)
   useEffect(() => {
     const state = threeRef.current;
     if (!state) return;
 
-    // 1. Chakras
-    Object.values(state.chakraMeshes).forEach((group) => {
-      const cGroup = group as THREE.Group;
-      if (cGroup) cGroup.visible = activeLayer === 'chakras';
+    const isMuscleMode = viewMode === 'muscle' || showAnatomyOverlay;
+    const isBoneMode = viewMode === 'bone' || showSkeleton;
+
+    // 1. Muscle Heatmaps (Glowing Thighs, Glutes, Deltoids, Core)
+    Object.values(state.heatmapMeshes).forEach((mesh) => {
+      mesh.visible = isMuscleMode;
     });
 
-    // 2. Breath Halo
-    if (state.breathMesh.material) {
-      const mat = state.breathMesh.material as THREE.MeshStandardMaterial;
-      mat.opacity = activeLayer === 'breath' || isBreathingActive ? 0.5 : 0.0;
-    }
+    // 2. 3D Skeleton (Pelvic bowl, spine vertebrae, ribcage, bones)
+    state.skeletonGroup.visible = isBoneMode;
 
-    // 3. Body Systems Particles
-    state.systemParticles.visible = activeLayer === 'body-systems';
-    if (state.systemParticles.material) {
-      const mat = state.systemParticles.material as THREE.PointsMaterial;
-      mat.opacity = activeLayer === 'body-systems' ? 0.85 : 0.0;
-      if (activeBodySystem === 'nervous') mat.color.setHex(0xfacc15);
-      else if (activeBodySystem === 'circulatory') mat.color.setHex(0xef4444);
-      else if (activeBodySystem === 'respiratory') mat.color.setHex(0x38bdf8);
-      else mat.color.setHex(0x10b981);
-    }
+    // 3. Alignment Grid & Laser Axes
+    state.alignmentGridGroup.visible = showAlignmentGrid;
+    state.verticalPlumbLine.visible = showAlignmentGrid;
+    state.horizontalArmAxis.visible = showAlignmentGrid;
 
-    // 4. Muscle Layer & Écorché Colors
-    Object.entries(state.muscleMeshes).forEach(([meshKey, rawMesh]) => {
-      const mesh = rawMesh as THREE.Mesh;
-      if (!mesh || !mesh.material) return;
-      const mat = mesh.material as THREE.MeshStandardMaterial;
+    // 4. Props
+    state.propBlockMesh.visible = showProps;
 
-      const isSelected = selectedMuscleId && meshKey.includes(selectedMuscleId);
-      const isMusclesLayer = activeLayer === 'muscles';
-
-      if (isSelected) {
-        mat.color.setHex(0x00e5ff); // Cyan active tension glow
-        mat.emissive.setHex(0x0284c7);
-        mat.emissiveIntensity = 1.0;
-      } else if (isMusclesLayer) {
-        mat.color.setHex(0x991b1b); // Rich deep red anatomical muscle tissue
-        mat.emissive.setHex(0x450a0a);
-        mat.emissiveIntensity = 0.35;
-      } else {
-        mat.color.setHex(0xdec0a5); // Match skin tone
-        mat.emissive.setHex(0x000000);
-        mat.emissiveIntensity = 0.0;
-      }
-    });
-
-    // 5. Skin Meshes Transparency when in muscle or skeleton mode
+    // 5. Skin Transparency Adjustment
     state.skinMeshes.forEach((mesh) => {
       const mat = mesh.material as THREE.MeshStandardMaterial;
-      if (activeLayer === 'muscles') {
-        mat.opacity = 0.75;
+      if (viewMode === 'bone') {
+        mat.opacity = 0.22;
         mat.transparent = true;
-      } else if (activeLayer === 'skeleton') {
-        mat.opacity = 0.25;
+      } else if (viewMode === 'muscle') {
+        mat.opacity = 0.55;
+        mat.transparent = true;
+      } else if (isBoneMode && isMuscleMode) {
+        mat.opacity = 0.72;
+        mat.transparent = true;
+      } else if (isBoneMode) {
+        mat.opacity = 0.45;
         mat.transparent = true;
       } else {
         mat.opacity = 1.0;
         mat.transparent = false;
       }
     });
-  }, [activeLayer, selectedMuscleId, activeBodySystem, isBreathingActive]);
+  }, [showAnatomyOverlay, showSkeleton, showAlignmentGrid, showProps, viewMode]);
 
-  // Update Pose Parameters (Dhanurasana, Virabhadrasana, Tadasana, etc.)
-  const applyPose = useCallback((params: Asana['poseParameters']) => {
+  // Apply Pose Parameters (Warrior II, Steps 1-6)
+  const applyWarriorPose = useCallback((progress: number, stepIdx: number) => {
     const state = threeRef.current;
-    if (!state || !params) return;
+    if (!state) return;
 
-    state.targetJoints = {
-      torso: new THREE.Euler(...params.torsoAngle),
-      head: new THREE.Euler(...params.headAngle),
-      leftShoulder: new THREE.Euler(...params.leftArm),
-      rightShoulder: new THREE.Euler(...params.rightArm),
-      leftElbow: new THREE.Euler(...params.leftForearm),
-      rightElbow: new THREE.Euler(...params.rightForearm),
-      leftHip: new THREE.Euler(...params.leftLeg),
-      rightHip: new THREE.Euler(...params.rightLeg),
-      leftKnee: new THREE.Euler(...params.leftShin),
-      rightKnee: new THREE.Euler(...params.rightShin),
-    };
+    // Step 0: Tadasana (Standing straight)
+    // Step 1: Wide Stance
+    // Step 2: Warrior II (90° bent front knee, horizontal arms, head turned)
+    // Step 3: Reverse Warrior (Back arm to rear thigh, front arm swept overhead)
+    // Step 4: Return to Warrior II
+    // Step 5: Completion
 
-    state.targetElevation = params.elevation ?? 0;
-    if (params.rotationY !== undefined && !state.isDragging) {
-      state.targetRotation.y = params.rotationY;
+    if (stepIdx === 0) {
+      // Mountain Pose
+      state.targetJoints = {
+        torso: new THREE.Euler(0, 0, 0),
+        head: new THREE.Euler(0, 0, 0),
+        leftShoulder: new THREE.Euler(0, 0, -0.15),
+        rightShoulder: new THREE.Euler(0, 0, 0.15),
+        leftElbow: new THREE.Euler(0, 0, 0),
+        rightElbow: new THREE.Euler(0, 0, 0),
+        leftHip: new THREE.Euler(0, 0, 0.05),
+        rightHip: new THREE.Euler(0, 0, -0.05),
+        leftKnee: new THREE.Euler(0, 0, 0),
+        rightKnee: new THREE.Euler(0, 0, 0),
+      };
+    } else if (stepIdx === 3) {
+      // Reverse Warrior
+      state.targetJoints = {
+        torso: new THREE.Euler(0, 0.2, 0.35),
+        head: new THREE.Euler(-0.25, 0.6, 0.1),
+        leftShoulder: new THREE.Euler(0, 0, 2.6), // Front arm overhead
+        rightShoulder: new THREE.Euler(0, 0, -0.4), // Rear arm along back thigh
+        leftElbow: new THREE.Euler(0, 0, -0.1),
+        rightElbow: new THREE.Euler(0, 0, 0),
+        leftHip: new THREE.Euler(0.2, 0.3, 1.2), // Front knee bent deep
+        rightHip: new THREE.Euler(-0.15, -0.2, -0.85), // Rear leg extended
+        leftKnee: new THREE.Euler(-1.45, 0, 0),
+        rightKnee: new THREE.Euler(-0.08, 0, 0),
+      };
+    } else {
+      // Step 2 (Warrior II default / reference image pose)
+      state.targetJoints = {
+        torso: new THREE.Euler(0, 0.12, 0),
+        head: new THREE.Euler(0, 1.35, 0), // Head turned gazing over front fingertips
+        leftShoulder: new THREE.Euler(0, 0, 1.57), // Left arm extended horizontal parallel to floor
+        rightShoulder: new THREE.Euler(0, 0, -1.57), // Right arm extended horizontal back
+        leftElbow: new THREE.Euler(0, 0, 0),
+        rightElbow: new THREE.Euler(0, 0, 0),
+        leftHip: new THREE.Euler(0.25, 0.45, 1.15), // Front hip deeply opened & abducted
+        rightHip: new THREE.Euler(-0.18, -0.25, -0.92), // Rear hip grounded
+        leftKnee: new THREE.Euler(-1.52, 0, 0), // Front knee bent 90° tracking over ankle
+        rightKnee: new THREE.Euler(-0.06, 0, 0), // Rear knee straight
+      };
     }
   }, []);
 
   useEffect(() => {
-    if (customPoseParams) {
-      applyPose(customPoseParams);
-    } else if (asana?.poseParameters) {
-      applyPose(asana.poseParameters);
-    }
-  }, [asana, customPoseParams, applyPose]);
+    applyWarriorPose(scrubberProgress, currentStepIndex);
+  }, [scrubberProgress, currentStepIndex, applyWarriorPose]);
 
-  // Load Custom User-Provided 3D GLB/GLTF Model if present
+  // Camera Presets & Zoom
   useEffect(() => {
     const state = threeRef.current;
     if (!state) return;
 
-    if (!customModelSource) {
-      // Revert to procedural anatomical human model
-      if (customModelGroupRef.current) {
-        state.scene.remove(customModelGroupRef.current);
-        customModelGroupRef.current = null;
-      }
-      state.humanGroup.visible = true;
-      return;
-    }
+    const baseDistance = 3.4 / Math.max(0.4, Math.min(2.5, zoomLevel));
 
-    let isCancelled = false;
-    loadGLTFModel(customModelSource)
-      .then(({ scene: customModel }) => {
-        if (isCancelled || !threeRef.current) return;
-        const current = threeRef.current;
-
-        // Hide default procedural group
-        current.humanGroup.visible = false;
-
-        // Clean up previous custom model if any
-        if (customModelGroupRef.current) {
-          current.scene.remove(customModelGroupRef.current);
-        }
-
-        customModelGroupRef.current = customModel;
-        current.scene.add(customModel);
-      })
-      .catch((err) => {
-        console.error('Failed to load custom 3D human model:', err);
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [customModelSource]);
-
-  // Camera View Preset & Zoom Updates
-  useEffect(() => {
-    const state = threeRef.current;
-    if (!state) return;
-    const baseDistance = 3.1 / Math.max(0.4, Math.min(2.5, zoomLevel));
-
-    if (cameraViewPreset === 'side' || cameraViewPreset === 'sagittal') {
-      state.targetCameraPos.set(baseDistance, 0.95, 0.05);
+    if (cameraPreset === 'front') {
+      state.targetCameraPos.set(0, 1.1, baseDistance);
       state.targetRotation = { x: 0, y: 0 };
-    } else if (cameraViewPreset === 'front' || cameraViewPreset === 'coronal') {
-      state.targetCameraPos.set(0, 0.95, baseDistance);
+    } else if (cameraPreset === 'side') {
+      state.targetCameraPos.set(baseDistance, 1.1, 0.05);
       state.targetRotation = { x: 0, y: 0 };
-    } else if (cameraViewPreset === 'back') {
-      state.targetCameraPos.set(0, 0.95, -baseDistance);
+    } else if (cameraPreset === 'back') {
+      state.targetCameraPos.set(0, 1.1, -baseDistance);
       state.targetRotation = { x: 0, y: 0 };
-    } else if (cameraViewPreset === 'top' || cameraViewPreset === 'transverse') {
-      state.targetCameraPos.set(0.05, baseDistance * 1.1, 0.1);
+    } else if (cameraPreset === 'top') {
+      state.targetCameraPos.set(0.05, baseDistance * 1.2, 0.1);
       state.targetRotation = { x: 0, y: 0 };
-    } else if (cameraViewPreset === 'spine') {
-      state.targetCameraPos.set(-0.6, 1.15, -baseDistance * 0.85);
     } else {
-      // 360 / default orbit angle
-      state.targetCameraPos.set(0, 0.95, baseDistance);
+      // 360 / Default angled view (matches reference image)
+      state.targetCameraPos.set(0.65, 1.25, baseDistance);
     }
-  }, [cameraViewPreset, zoomLevel]);
+  }, [cameraPreset, zoomLevel]);
 
-  // Step Camera Target Updates
-  useEffect(() => {
+  // Mouse Interaction (Orbit 360°, Pan)
+  const handleMouseDown = (e: React.MouseEvent) => {
     const state = threeRef.current;
-    if (!state || !asana || !asana.steps) return;
-    const currentStep = asana.steps[currentStepIndex];
-    if (currentStep?.cameraPosition) {
-      state.targetCameraPos.set(...currentStep.cameraPosition);
-    }
-  }, [asana, currentStepIndex]);
-
-  // Mouse & Touch Drag Controls (360° Viewport)
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (!allowManualControl || !threeRef.current) return;
-    threeRef.current.isDragging = true;
-    threeRef.current.previousMousePosition = { x: e.clientX, y: e.clientY };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    if (!state) return;
+    state.isDragging = true;
+    state.previousMousePosition = { x: e.clientX, y: e.clientY };
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
+  const handleMouseMove = (e: React.MouseEvent) => {
     const state = threeRef.current;
-    if (!state || !state.isDragging || !allowManualControl) return;
+    if (!state || !state.isDragging) return;
 
     const deltaX = e.clientX - state.previousMousePosition.x;
     const deltaY = e.clientY - state.previousMousePosition.y;
 
-    state.targetRotation.y += deltaX * 0.009;
-    state.targetRotation.x = Math.max(-0.6, Math.min(0.6, state.targetRotation.x + deltaY * 0.009));
+    state.targetRotation.y += deltaX * 0.008;
+    state.targetRotation.x = Math.max(-0.45, Math.min(0.45, state.targetRotation.x + deltaY * 0.006));
 
     state.previousMousePosition = { x: e.clientX, y: e.clientY };
   };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (!threeRef.current) return;
-    threeRef.current.isDragging = false;
-    try {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
+  const handleMouseUp = () => {
+    const state = threeRef.current;
+    if (state) state.isDragging = false;
   };
 
   return (
     <div
       ref={containerRef}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      className={`relative w-full h-full select-none cursor-grab active:cursor-grabbing overflow-hidden ${className}`}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      className={`relative w-full h-full cursor-grab active:cursor-grabbing select-none overflow-hidden ${className}`}
     >
-      {/* 3D WebGL Canvas */}
       <canvas ref={canvasRef} className="w-full h-full block" />
-
-      {/* Holographic 3D HUD Muscle Callout Pins with Leader Lines (matching uploaded kinesiology video!) */}
-      {showHUDPins && activeLayer === 'muscles' && (
-        <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
-          {hudPins.map((pin, idx) => {
-            const isSelected = selectedMuscleId === pin.id;
-            // Alternate left/right offset for natural medical diagram spacing
-            const isLeft = idx % 2 === 1;
-            const lineLength = 32;
-
-            return (
-              <div
-                key={pin.id}
-                style={{
-                  transform: `translate(${pin.screenX}px, ${pin.screenY}px)`,
-                }}
-                className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 pointer-events-auto transition-transform duration-75 group"
-              >
-                {/* Center Anatomical Target Point */}
-                <div
-                  onClick={() => {
-                    if (onSelectMuscle && asana?.muscles) {
-                      const m = asana.muscles.find((x) => x.id === pin.id) || null;
-                      onSelectMuscle(m);
-                    }
-                  }}
-                  className="relative flex items-center justify-center cursor-pointer"
-                >
-                  {/* Glowing Core Node */}
-                  <div className={`w-2.5 h-2.5 rounded-full border transition-all ${
-                    isSelected
-                      ? 'bg-[#00e5ff] border-white scale-125 shadow-[0_0_10px_#00e5ff]'
-                      : 'bg-white/90 border-black/40 shadow-[0_0_8px_rgba(255,255,255,0.8)]'
-                  }`} />
-                  
-                  {/* SVG Angled Leader Line */}
-                  <svg
-                    className={`absolute top-0 pointer-events-none overflow-visible ${
-                      isLeft ? 'right-1' : 'left-1'
-                    }`}
-                    width={lineLength + 4}
-                    height="20"
-                    style={{
-                      transform: isLeft ? 'translate(-100%, -50%)' : 'translate(0%, -50%)',
-                    }}
-                  >
-                    <line
-                      x1={isLeft ? lineLength : 0}
-                      y1="10"
-                      x2={isLeft ? 0 : lineLength}
-                      y2="10"
-                      stroke={isSelected ? '#00e5ff' : 'rgba(255, 255, 255, 0.75)'}
-                      strokeWidth="1.2"
-                      strokeDasharray={isSelected ? 'none' : '2,2'}
-                    />
-                  </svg>
-
-                  {/* Leader Callout Label (Clean white medical text matching video) */}
-                  <div
-                    style={{
-                      transform: isLeft
-                        ? `translate(-${lineLength + 12}px, -50%)`
-                        : `translate(${lineLength + 12}px, -50%)`,
-                    }}
-                    className={`absolute top-0 flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-sans tracking-wide whitespace-nowrap shadow-xl backdrop-blur-md transition-all ${
-                      isSelected
-                        ? 'bg-[#00381f]/95 text-[#00e5ff] border border-[#00e5ff]/60 scale-105'
-                        : 'bg-black/80 text-white border border-white/20 hover:border-white/60 hover:bg-black/95'
-                    }`}
-                  >
-                    <span className="font-semibold">{pin.name}</span>
-                    <span className="text-[9px] font-mono opacity-80 text-[#38bdf8]">
-                      {pin.percentage}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };

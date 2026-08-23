@@ -8,7 +8,7 @@ import { ASANAS } from './data/asanas';
 import { Asana } from './types';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'library' | 'studio' | 'about'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'library' | 'studio' | 'about'>('library');
   const defaultTreePose = ASANAS.find((a) => a.slug === 'vrikshasana') || ASANAS[0];
   const [activeAsana, setActiveAsana] = useState<Asana>(defaultTreePose);
   const [isDark, setIsDark] = useState<boolean>(() => {
