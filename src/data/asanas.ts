@@ -343,18 +343,23 @@ export const ASANAS: Asana[] = [
         color: '#D9AE29'
       }
     ],
+    // Reconciled with the hand-tuned Warrior II pose that YogaHumanCanvas used
+    // to hardcode: the front hip is deeply abducted so the stance reads wide,
+    // and the front knee tracks over the ankle at ~90 degrees. Elevation stays
+    // at 0 — the rig is rooted at the pelvis with no foot IK, so a positive
+    // offset lifts the model off the mat.
     poseParameters: {
-      torsoAngle: [0, 0, 0],
-      headAngle: [0, 1.2, 0],
-      leftArm: [0, 0, 1.55],
-      rightArm: [0, 0, -1.55],
+      torsoAngle: [0, 0.12, 0],
+      headAngle: [0, 1.35, 0],
+      leftArm: [0, 0, 1.57],
+      rightArm: [0, 0, -1.57],
       leftForearm: [0, 0, 0],
       rightForearm: [0, 0, 0],
-      leftLeg: [0.85, 0.2, 0.4],
-      rightLeg: [-0.65, -0.1, -0.2],
-      leftShin: [-1.45, 0, 0],
-      rightShin: [0.1, 0, 0],
-      elevation: 0.15,
+      leftLeg: [0.25, 0.45, 1.15],
+      rightLeg: [-0.18, -0.25, -0.92],
+      leftShin: [-1.52, 0, 0],
+      rightShin: [-0.06, 0, 0],
+      elevation: 0,
       rotationY: 0.3
     },
     tags: ['Standing', 'Intermediate', 'Strength', 'Grounding', 'Hips', 'Shoulders']

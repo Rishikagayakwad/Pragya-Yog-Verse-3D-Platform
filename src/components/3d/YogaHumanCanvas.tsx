@@ -26,6 +26,13 @@ export interface YogaHumanCanvasProps {
   onCameraMove?: () => void;
 }
 
+/**
+ * Number of guided-practice steps over which the model eases out of the rig's
+ * rest state (which is Tadasana) and into the asana's authored pose. The Studio
+ * opens on step index 2, so its default view is the fully established posture.
+ */
+const ENTRY_STEPS = 2;
+
 export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   asana,
   currentStepIndex = 2, // Step 3/6 default (Warrior II)
@@ -74,6 +81,9 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     currentJoints: { [key: string]: THREE.Euler };
     targetElevation: number;
     currentElevation: number;
+    basePositionY: number;
+    targetPoseRotationY: number;
+    currentPoseRotationY: number;
   } | null>(null);
 
   // Initialize Three.js
@@ -499,6 +509,9 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       currentJoints: {},
       targetElevation: 0,
       currentElevation: 0,
+      basePositionY: platformHeight + matHeight,
+      targetPoseRotationY: 0,
+      currentPoseRotationY: 0,
     };
 
     // Resize Handler
@@ -527,8 +540,15 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       // Smooth Rotation Damping
       state.currentRotation.x += (state.targetRotation.x - state.currentRotation.x) * 0.08;
       state.currentRotation.y += (state.targetRotation.y - state.currentRotation.y) * 0.08;
-      state.humanGroup.rotation.y = state.currentRotation.y;
+      // The pose's own yaw and elevation ride on top of whatever the user has
+      // dragged to, so orbiting keeps working while the posture stays oriented.
+      state.currentPoseRotationY +=
+        (state.targetPoseRotationY - state.currentPoseRotationY) * 0.08;
+      state.currentElevation += (state.targetElevation - state.currentElevation) * 0.08;
+
+      state.humanGroup.rotation.y = state.currentRotation.y + state.currentPoseRotationY;
       state.humanGroup.rotation.x = state.currentRotation.x;
+      state.humanGroup.position.y = state.basePositionY + state.currentElevation;
 
       // Smooth Camera Damping
       state.currentCameraPos.lerp(state.targetCameraPos, 0.07);
@@ -616,66 +636,57 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     });
   }, [showAnatomyOverlay, showSkeleton, showAlignmentGrid, showProps, viewMode, activeLayer]);
 
-  // Apply Pose Parameters (Warrior II, Steps 1-6)
-  const applyWarriorPose = useCallback((progress: number, stepIdx: number) => {
+  // Drive the rig from the selected asana's authored pose parameters.
+  //
+  // Asana.poseParameters describes the finished posture as joint rotations, in
+  // the same convention the rig uses. The mapping from data field to rig joint:
+  //
+  //   torsoAngle / headAngle       -> torso / head
+  //   leftArm / rightArm           -> {left,right}Shoulder
+  //   leftForearm / rightForearm   -> {left,right}Elbow
+  //   leftLeg / rightLeg           -> {left,right}Hip
+  //   leftShin / rightShin         -> {left,right}Knee
+  //
+  // The rig's rest state (every joint at zero) is Tadasana, so scaling the
+  // authored angles by an entry factor eases the model from standing into the
+  // posture across the opening steps, then holds it for the remaining ones.
+  const applyAsanaPose = useCallback((target: Asana | undefined, stepIdx: number) => {
     const state = threeRef.current;
     if (!state) return;
 
-    // Step 0: Tadasana (Standing straight)
-    // Step 1: Wide Stance
-    // Step 2: Warrior II (90° bent front knee, horizontal arms, head turned)
-    // Step 3: Reverse Warrior (Back arm to rear thigh, front arm swept overhead)
-    // Step 4: Return to Warrior II
-    // Step 5: Completion
-
-    if (stepIdx === 0) {
-      // Mountain Pose
-      state.targetJoints = {
-        torso: new THREE.Euler(0, 0, 0),
-        head: new THREE.Euler(0, 0, 0),
-        leftShoulder: new THREE.Euler(0, 0, -0.15),
-        rightShoulder: new THREE.Euler(0, 0, 0.15),
-        leftElbow: new THREE.Euler(0, 0, 0),
-        rightElbow: new THREE.Euler(0, 0, 0),
-        leftHip: new THREE.Euler(0, 0, 0.05),
-        rightHip: new THREE.Euler(0, 0, -0.05),
-        leftKnee: new THREE.Euler(0, 0, 0),
-        rightKnee: new THREE.Euler(0, 0, 0),
-      };
-    } else if (stepIdx === 3) {
-      // Reverse Warrior
-      state.targetJoints = {
-        torso: new THREE.Euler(0, 0.2, 0.35),
-        head: new THREE.Euler(-0.25, 0.6, 0.1),
-        leftShoulder: new THREE.Euler(0, 0, 2.6), // Front arm overhead
-        rightShoulder: new THREE.Euler(0, 0, -0.4), // Rear arm along back thigh
-        leftElbow: new THREE.Euler(0, 0, -0.1),
-        rightElbow: new THREE.Euler(0, 0, 0),
-        leftHip: new THREE.Euler(0.2, 0.3, 1.2), // Front knee bent deep
-        rightHip: new THREE.Euler(-0.15, -0.2, -0.85), // Rear leg extended
-        leftKnee: new THREE.Euler(-1.45, 0, 0),
-        rightKnee: new THREE.Euler(-0.08, 0, 0),
-      };
-    } else {
-      // Step 2 (Warrior II default / reference image pose)
-      state.targetJoints = {
-        torso: new THREE.Euler(0, 0.12, 0),
-        head: new THREE.Euler(0, 1.35, 0), // Head turned gazing over front fingertips
-        leftShoulder: new THREE.Euler(0, 0, 1.57), // Left arm extended horizontal parallel to floor
-        rightShoulder: new THREE.Euler(0, 0, -1.57), // Right arm extended horizontal back
-        leftElbow: new THREE.Euler(0, 0, 0),
-        rightElbow: new THREE.Euler(0, 0, 0),
-        leftHip: new THREE.Euler(0.25, 0.45, 1.15), // Front hip deeply opened & abducted
-        rightHip: new THREE.Euler(-0.18, -0.25, -0.92), // Rear hip grounded
-        leftKnee: new THREE.Euler(-1.52, 0, 0), // Front knee bent 90° tracking over ankle
-        rightKnee: new THREE.Euler(-0.06, 0, 0), // Rear knee straight
-      };
+    const pose = target?.poseParameters;
+    if (!pose) {
+      state.targetJoints = {};
+      state.targetElevation = 0;
+      state.targetPoseRotationY = 0;
+      return;
     }
+
+    // 0 while still standing, 1 once the posture is fully established.
+    const entry = ENTRY_STEPS > 0 ? Math.min(1, Math.max(0, stepIdx / ENTRY_STEPS)) : 1;
+    const eased = (angles: [number, number, number]) =>
+      new THREE.Euler(angles[0] * entry, angles[1] * entry, angles[2] * entry);
+
+    state.targetJoints = {
+      torso: eased(pose.torsoAngle),
+      head: eased(pose.headAngle),
+      leftShoulder: eased(pose.leftArm),
+      rightShoulder: eased(pose.rightArm),
+      leftElbow: eased(pose.leftForearm),
+      rightElbow: eased(pose.rightForearm),
+      leftHip: eased(pose.leftLeg),
+      rightHip: eased(pose.rightLeg),
+      leftKnee: eased(pose.leftShin),
+      rightKnee: eased(pose.rightShin),
+    };
+
+    state.targetElevation = pose.elevation * entry;
+    state.targetPoseRotationY = pose.rotationY * entry;
   }, []);
 
   useEffect(() => {
-    applyWarriorPose(scrubberProgress, currentStepIndex);
-  }, [scrubberProgress, currentStepIndex, applyWarriorPose]);
+    applyAsanaPose(asana, currentStepIndex);
+  }, [asana, currentStepIndex, applyAsanaPose]);
 
   // Camera Presets & Zoom
   useEffect(() => {
