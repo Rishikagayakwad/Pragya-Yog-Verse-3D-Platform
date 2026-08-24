@@ -8,6 +8,12 @@ import * as THREE from 'three';
 export interface HumanRigResult {
   humanGroup: THREE.Group;
   bodyParts: { [key: string]: THREE.Object3D };
+  /**
+   * Each joint's neutral rotation. Poses are applied as `rest + authored
+   * angles`, which is what lets one set of poseParameters drive both this
+   * procedural rig (rest is all zeros) and a loaded GLB (rest is its bind pose).
+   */
+  restRotations: { [key: string]: THREE.Euler };
   muscleMeshes: { [key: string]: THREE.Mesh };
   heatmapMeshes: { [key: string]: THREE.Mesh };
   skeletonGroup: THREE.Group;
@@ -690,9 +696,18 @@ export function createDetailedHumanModel(): HumanRigResult {
     skeletonGroup.add(footBone);
   }
 
+  // Rest rotation of every joint, so posing can be expressed as a delta from
+  // the rig's neutral stance. This rig is authored at zero, but a loaded GLB
+  // carries real bind-pose rotations, and both go through the same code path.
+  const restRotations: { [key: string]: THREE.Euler } = {};
+  for (const [name, part] of Object.entries(bodyParts)) {
+    restRotations[name] = part.rotation.clone();
+  }
+
   return {
     humanGroup,
     bodyParts,
+    restRotations,
     muscleMeshes,
     heatmapMeshes,
     skeletonGroup,

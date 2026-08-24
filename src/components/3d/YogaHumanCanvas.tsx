@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import type { Asana, VisualLayerType } from '../../types';
 import { createDetailedHumanModel, HumanRigResult } from './detailedHumanModel';
+import { HUMAN_MODEL_URL } from '../../config/model';
 
 export interface YogaHumanCanvasProps {
   asana?: Asana;
@@ -59,6 +60,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     renderer: THREE.WebGLRenderer;
     humanGroup: THREE.Group;
     bodyParts: { [key: string]: THREE.Object3D };
+    restRotations: { [key: string]: THREE.Euler };
     muscleMeshes: { [key: string]: THREE.Mesh };
     heatmapMeshes: { [key: string]: THREE.Mesh };
     skeletonGroup: THREE.Group;
@@ -487,6 +489,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       renderer,
       humanGroup,
       bodyParts: humanRig.bodyParts,
+      restRotations: humanRig.restRotations,
       muscleMeshes: humanRig.muscleMeshes,
       heatmapMeshes: humanRig.heatmapMeshes,
       skeletonGroup: humanRig.skeletonGroup,
@@ -513,6 +516,50 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       targetPoseRotationY: 0,
       currentPoseRotationY: 0,
     };
+
+    // 10b. Upgrade to the configured humanoid GLB, if there is one.
+    //
+    // The procedural rig above is already on screen, so this is a progressive
+    // swap rather than a loading gate: the studio is usable immediately and
+    // simply gets a better body when the download finishes. Any failure —
+    // missing file, unrecognisable skeleton — leaves the fallback in place,
+    // because a posable rough model beats an empty stage.
+    let cancelled = false;
+
+    if (HUMAN_MODEL_URL) {
+      // Captured locally so the narrowing survives into the callback below.
+      const modelUrl = HUMAN_MODEL_URL;
+
+      // Imported lazily so GLTFLoader is code-split out of the main bundle —
+      // projects running the procedural fallback never download it.
+      import('./humanoidRig')
+        .then(({ loadHumanoidRig }) => loadHumanoidRig(modelUrl))
+        .then((loaded) => {
+          const state = threeRef.current;
+          if (cancelled || !state) return;
+
+          state.scene.remove(state.humanGroup);
+          loaded.humanGroup.position.copy(state.humanGroup.position);
+
+          state.humanGroup = loaded.humanGroup;
+          state.bodyParts = loaded.bodyParts;
+          state.restRotations = loaded.restRotations;
+          state.heatmapMeshes = loaded.heatmapMeshes;
+          state.skeletonGroup = loaded.skeletonGroup;
+          state.skinMeshes = loaded.skinMeshes;
+          state.clothingMeshes = loaded.clothingMeshes;
+
+          state.scene.add(loaded.humanGroup);
+          // targetJoints survives the swap, so the animate loop eases the new
+          // body into the pose already selected without re-running anything.
+        })
+        .catch((err) => {
+          console.warn(
+            `[YogaHumanCanvas] Keeping the procedural model — ${HUMAN_MODEL_URL} did not load.`,
+            err
+          );
+        });
+    }
 
     // Resize Handler
     const handleResize = () => {
@@ -555,14 +602,24 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       state.camera.position.copy(state.currentCameraPos);
       state.camera.lookAt(0, 0.88, 0);
 
-      // Smooth Joint Interpolation
+      // Smooth Joint Interpolation.
+      //
+      // Authored angles are a delta from the rig's neutral stance, not absolute
+      // rotations. The procedural rig rests at zero so the two are the same
+      // there, but a loaded GLB rests in its bind pose — adding it is what lets
+      // one set of poseParameters drive either rig.
       Object.entries(state.targetJoints).forEach(([partName, targetEuler]) => {
         const part = state.bodyParts[partName];
-        if (part) {
-          part.rotation.x += (targetEuler.x - part.rotation.x) * 0.1;
-          part.rotation.y += (targetEuler.y - part.rotation.y) * 0.1;
-          part.rotation.z += (targetEuler.z - part.rotation.z) * 0.1;
-        }
+        if (!part) return;
+
+        const rest = state.restRotations[partName];
+        const targetX = (rest?.x ?? 0) + targetEuler.x;
+        const targetY = (rest?.y ?? 0) + targetEuler.y;
+        const targetZ = (rest?.z ?? 0) + targetEuler.z;
+
+        part.rotation.x += (targetX - part.rotation.x) * 0.1;
+        part.rotation.y += (targetY - part.rotation.y) * 0.1;
+        part.rotation.z += (targetZ - part.rotation.z) * 0.1;
       });
 
       state.renderer.render(state.scene, state.camera);
@@ -571,6 +628,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     animate();
 
     return () => {
+      cancelled = true;
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animId);
       renderer.dispose();
