@@ -1,3 +1,4 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { askYogaTeacher } from '../../lib/aiTeacher';
 
 /**
@@ -7,40 +8,42 @@ import { askYogaTeacher } from '../../lib/aiTeacher';
  * a static Vite build, so server.ts never runs in production — this file is
  * what actually serves the endpoint on the deployed site.
  *
- * Non-Next.js projects use the web-standard fetch handler signature.
+ * Uses the Node.js (request, response) signature rather than the newer `fetch`
+ * Web Standard export. Both are documented, but the fetch form returned
+ * FUNCTION_INVOCATION_FAILED on this project's builder while the code itself
+ * ran correctly when bundled and invoked locally — so the runtime here is not
+ * calling that convention. The (req, res) form is supported everywhere.
  */
-export default {
-  async fetch(request: Request): Promise<Response> {
-    if (request.method !== 'POST') {
-      return Response.json(
-        { error: 'Method not allowed' },
-        { status: 405, headers: { Allow: 'POST' } }
-      );
-    }
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-    let question: unknown;
-    let asanaSlug: unknown;
+  let body: unknown;
+  try {
+    // Vercel exposes req.body as a getter that throws on malformed JSON.
+    body = req.body;
+  } catch {
+    return res.status(400).json({ error: 'Request body must be valid JSON' });
+  }
 
-    try {
-      const body = await request.json();
-      question = body?.question;
-      asanaSlug = body?.asanaSlug;
-    } catch {
-      return Response.json({ error: 'Request body must be valid JSON' }, { status: 400 });
-    }
+  const { question, asanaSlug } = (body ?? {}) as {
+    question?: unknown;
+    asanaSlug?: unknown;
+  };
 
-    if (typeof question !== 'string' || question.trim() === '') {
-      return Response.json({ error: 'Question is required' }, { status: 400 });
-    }
+  if (typeof question !== 'string' || question.trim() === '') {
+    return res.status(400).json({ error: 'Question is required' });
+  }
 
-    const reply = await askYogaTeacher(
-      question,
-      typeof asanaSlug === 'string' ? asanaSlug : undefined
-    );
+  const reply = await askYogaTeacher(
+    question,
+    typeof asanaSlug === 'string' ? asanaSlug : undefined
+  );
 
-    // Always 200 with usable content. Returning an error status here would make
-    // the client discard the body and substitute its own canned text, which is
-    // exactly the silent-failure path this endpoint replaced.
-    return Response.json(reply);
-  },
-};
+  // Always 200 with usable content. Returning an error status here would make
+  // the client discard the body and substitute its own canned text, which is
+  // exactly the silent-failure path this endpoint replaced.
+  return res.status(200).json(reply);
+}
