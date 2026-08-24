@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { Asana } from '../../types';
+import { Asana, VisualLayerType } from '../../types';
 import { createDetailedHumanModel, HumanRigResult } from './detailedHumanModel';
 
 export interface YogaHumanCanvasProps {
@@ -11,9 +11,15 @@ export interface YogaHumanCanvasProps {
   showSkeleton?: boolean;
   showAlignmentGrid?: boolean;
   showProps?: boolean;
+  /**
+   * Semantic layer selector used by AsanaStudio and HeroScrollExperience.
+   * When provided it is the source of truth for what the viewer shows, and
+   * takes precedence over viewMode / showAnatomyOverlay / showSkeleton.
+   */
+  activeLayer?: VisualLayerType;
   viewMode?: 'camera' | 'bone' | 'muscle';
   selectedMuscleId?: string | null;
-  cameraPreset?: '360' | 'orbit' | 'front' | 'side' | 'back' | 'top';
+  cameraViewPreset?: '360' | 'orbit' | 'front' | 'side' | 'back' | 'top';
   zoomLevel?: number;
   isDark?: boolean;
   className?: string;
@@ -28,9 +34,10 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   showSkeleton = true,
   showAlignmentGrid = true,
   showProps = false,
+  activeLayer,
   viewMode = 'camera',
   selectedMuscleId,
-  cameraPreset = 'orbit',
+  cameraViewPreset = 'orbit',
   zoomLevel = 1.0,
   isDark = true,
   className = '',
@@ -555,8 +562,21 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     const state = threeRef.current;
     if (!state) return;
 
-    const isMuscleMode = viewMode === 'muscle' || showAnatomyOverlay;
-    const isBoneMode = viewMode === 'bone' || showSkeleton;
+    // activeLayer wins when supplied; the booleans remain a lower-level fallback.
+    const effectiveViewMode: 'camera' | 'bone' | 'muscle' = activeLayer
+      ? activeLayer === 'muscles'
+        ? 'muscle'
+        : activeLayer === 'skeleton'
+          ? 'bone'
+          : 'camera'
+      : viewMode;
+
+    const isMuscleMode = activeLayer
+      ? activeLayer === 'muscles'
+      : viewMode === 'muscle' || showAnatomyOverlay;
+    const isBoneMode = activeLayer
+      ? activeLayer === 'skeleton'
+      : viewMode === 'bone' || showSkeleton;
 
     // 1. Muscle Heatmaps (Glowing Thighs, Glutes, Deltoids, Core)
     Object.values(state.heatmapMeshes).forEach((mesh) => {
@@ -577,10 +597,10 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     // 5. Skin Transparency Adjustment
     state.skinMeshes.forEach((mesh) => {
       const mat = mesh.material as THREE.MeshStandardMaterial;
-      if (viewMode === 'bone') {
+      if (effectiveViewMode === 'bone') {
         mat.opacity = 0.22;
         mat.transparent = true;
-      } else if (viewMode === 'muscle') {
+      } else if (effectiveViewMode === 'muscle') {
         mat.opacity = 0.55;
         mat.transparent = true;
       } else if (isBoneMode && isMuscleMode) {
@@ -594,7 +614,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
         mat.transparent = false;
       }
     });
-  }, [showAnatomyOverlay, showSkeleton, showAlignmentGrid, showProps, viewMode]);
+  }, [showAnatomyOverlay, showSkeleton, showAlignmentGrid, showProps, viewMode, activeLayer]);
 
   // Apply Pose Parameters (Warrior II, Steps 1-6)
   const applyWarriorPose = useCallback((progress: number, stepIdx: number) => {
@@ -664,23 +684,23 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
     const baseDistance = 3.4 / Math.max(0.4, Math.min(2.5, zoomLevel));
 
-    if (cameraPreset === 'front') {
+    if (cameraViewPreset === 'front') {
       state.targetCameraPos.set(0, 1.1, baseDistance);
       state.targetRotation = { x: 0, y: 0 };
-    } else if (cameraPreset === 'side') {
+    } else if (cameraViewPreset === 'side') {
       state.targetCameraPos.set(baseDistance, 1.1, 0.05);
       state.targetRotation = { x: 0, y: 0 };
-    } else if (cameraPreset === 'back') {
+    } else if (cameraViewPreset === 'back') {
       state.targetCameraPos.set(0, 1.1, -baseDistance);
       state.targetRotation = { x: 0, y: 0 };
-    } else if (cameraPreset === 'top') {
+    } else if (cameraViewPreset === 'top') {
       state.targetCameraPos.set(0.05, baseDistance * 1.2, 0.1);
       state.targetRotation = { x: 0, y: 0 };
     } else {
       // 360 / Default angled view (matches reference image)
       state.targetCameraPos.set(0.65, 1.25, baseDistance);
     }
-  }, [cameraPreset, zoomLevel]);
+  }, [cameraViewPreset, zoomLevel]);
 
   // Mouse Interaction (Orbit 360°, Pan)
   const handleMouseDown = (e: React.MouseEvent) => {

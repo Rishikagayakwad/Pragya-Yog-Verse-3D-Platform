@@ -561,7 +561,6 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
             currentStepIndex={currentStepIndex}
             activeLayer={activeLayer}
             selectedMuscleId={selectedMuscle?.id}
-            selectedChakraId={selectedChakra?.id}
             cameraViewPreset={cameraPreset}
             zoomLevel={zoomLevel}
             isDark={isDark}

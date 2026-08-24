@@ -75,9 +75,6 @@ export const HeroScrollExperience: React.FC<HeroScrollExperienceProps> = ({
             asana={getActiveAsana()}
             activeLayer={getActiveLayer()}
             isDark={isDark}
-            autoRotate={activeStoryStage < 2}
-            isBreathingActive={activeStoryStage === 7}
-            showOrbitalTelemetry={false}
             className="w-full h-full"
           />
         </div>
