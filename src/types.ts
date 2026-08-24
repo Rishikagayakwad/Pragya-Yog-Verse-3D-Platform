@@ -140,6 +140,8 @@ export interface AIChatMessage {
   text?: string;
   timestamp: number;
   suggestedQuestions?: string[];
+  /** Assistant messages only: the text is canned guidance, not a real answer. */
+  degraded?: boolean;
 }
 
 export type ActiveStudioSection = 

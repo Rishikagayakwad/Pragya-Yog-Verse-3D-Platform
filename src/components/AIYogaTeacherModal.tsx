@@ -64,6 +64,7 @@ export const AIYogaTeacherModal: React.FC<AIYogaTeacherModalProps> = ({
         role: 'assistant',
         content: res.answer,
         timestamp: Date.now(),
+        degraded: res.degraded,
       };
       setMessages((prev) => [...prev, assistantMessage]);
       if (res.suggestedQuestions && res.suggestedQuestions.length > 0) {
@@ -136,6 +137,16 @@ export const AIYogaTeacherModal: React.FC<AIYogaTeacherModalProps> = ({
                   }`}
                 >
                   {msg.content}
+
+                  {msg.degraded && (
+                    <div className="mt-3 pt-2.5 border-t border-amber-500/30 flex items-start gap-1.5 text-[10px] font-mono text-amber-700 dark:text-amber-400/90 not-italic">
+                      <HelpCircle className="w-3 h-3 shrink-0 mt-px" />
+                      <span>
+                        General guidance — the AI teacher is unavailable right now, so this
+                        is not a generated answer.
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {isUser && (
