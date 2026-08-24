@@ -4,7 +4,7 @@ import { AsanaLibrary } from './components/AsanaLibrary';
 import { AsanaStudio } from './components/AsanaStudio';
 import { SearchModal } from './components/SearchModal';
 import { ASANAS } from './data/asanas';
-import { Asana, AppView } from './types';
+import type { Asana, AppView } from './types';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('library');

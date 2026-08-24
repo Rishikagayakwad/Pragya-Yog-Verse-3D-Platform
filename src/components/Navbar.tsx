@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, Search, Sun, Moon } from 'lucide-react';
-import { AppView } from '../types';
+import type { AppView } from '../types';
 
 interface NavbarProps {
   currentView: AppView;

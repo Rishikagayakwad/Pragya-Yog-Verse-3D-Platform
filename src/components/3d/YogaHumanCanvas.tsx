@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { Asana, VisualLayerType } from '../../types';
+import type { Asana, VisualLayerType } from '../../types';
 import { createDetailedHumanModel, HumanRigResult } from './detailedHumanModel';
 
 export interface YogaHumanCanvasProps {

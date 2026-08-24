@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Send, Sparkles, Bot, User, HelpCircle, Loader2 } from 'lucide-react';
-import { Asana, AIChatMessage } from '../types';
+import type { Asana, AIChatMessage } from '../types';
 import { askAIYogaTeacher } from '../services/api';
 
 interface AIYogaTeacherModalProps {

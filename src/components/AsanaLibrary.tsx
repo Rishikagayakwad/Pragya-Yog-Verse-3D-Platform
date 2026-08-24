@@ -15,7 +15,7 @@ import {
   Box
 } from 'lucide-react';
 import { ASANAS } from '../data/asanas';
-import { Asana, MovementType } from '../types';
+import type { Asana, MovementType } from '../types';
 
 interface AsanaLibraryProps {
   onSelectAsana: (asana: Asana) => void;

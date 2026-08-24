@@ -1,4 +1,4 @@
-import { Asana } from '../types';
+import type { Asana } from '../types';
 
 export const CHAKRAS_UNIVERSAL = {
   root: {

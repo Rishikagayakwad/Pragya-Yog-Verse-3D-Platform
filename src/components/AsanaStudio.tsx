@@ -32,7 +32,7 @@ import {
   Share2
 } from 'lucide-react';
 import { YogaHumanCanvas } from './3d/YogaHumanCanvas';
-import { Asana, VisualLayerType, ActiveStudioSection, MuscleActivation, ChakraInfo, BodySystemType } from '../types';
+import type { Asana, VisualLayerType, ActiveStudioSection, MuscleActivation, ChakraInfo, BodySystemType } from '../types';
 import { voiceGuidance } from '../utils/voiceGuidance';
 import { AIYogaTeacherModal } from './AIYogaTeacherModal';
 import { ASANAS } from '../data/asanas';

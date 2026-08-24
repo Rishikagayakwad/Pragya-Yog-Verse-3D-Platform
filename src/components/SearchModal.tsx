@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, ArrowRight, Sparkles, Activity, Shield } from 'lucide-react';
 import { ASANAS } from '../data/asanas';
-import { Asana } from '../types';
+import type { Asana } from '../types';
 
 interface SearchModalProps {
   isOpen: boolean;
