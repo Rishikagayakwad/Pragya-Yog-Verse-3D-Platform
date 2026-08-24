@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { askYogaTeacher } from '../../lib/aiTeacher';
+import { askYogaTeacher } from '../../lib/aiTeacher.js';
 
 /**
  * POST /api/ai/ask
@@ -8,11 +8,12 @@ import { askYogaTeacher } from '../../lib/aiTeacher';
  * a static Vite build, so server.ts never runs in production — this file is
  * what actually serves the endpoint on the deployed site.
  *
- * Uses the Node.js (request, response) signature rather than the newer `fetch`
- * Web Standard export. Both are documented, but the fetch form returned
- * FUNCTION_INVOCATION_FAILED on this project's builder while the code itself
- * ran correctly when bundled and invoked locally — so the runtime here is not
- * calling that convention. The (req, res) form is supported everywhere.
+ * Note the `.js` extension on the relative import below — it is required, not
+ * cosmetic. package.json sets "type": "module" and Vercel compiles each api/
+ * file rather than bundling it, so relative imports become real Node ESM
+ * specifiers, and ESM refuses to resolve extensionless paths. Without it the
+ * function dies at module load with FUNCTION_INVOCATION_FAILED. Any new
+ * relative import in this file or its chain needs the same treatment.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

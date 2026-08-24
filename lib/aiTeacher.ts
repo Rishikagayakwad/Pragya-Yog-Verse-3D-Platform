@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { ASANAS } from '../src/data/asanas';
+import { ASANAS } from '../src/data/asanas.js';
 
 /**
  * Shared AI Yoga Teacher logic.
