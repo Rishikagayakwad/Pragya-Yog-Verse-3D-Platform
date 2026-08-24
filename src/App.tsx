@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
-import { HeroScrollExperience } from './components/HeroScrollExperience';
 import { AsanaLibrary } from './components/AsanaLibrary';
 import { AsanaStudio } from './components/AsanaStudio';
 import { SearchModal } from './components/SearchModal';
 import { ASANAS } from './data/asanas';
-import { Asana } from './types';
+import { Asana, AppView } from './types';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'library' | 'studio' | 'about'>('library');
+  const [currentView, setCurrentView] = useState<AppView>('library');
   const defaultTreePose = ASANAS.find((a) => a.slug === 'vrikshasana') || ASANAS[0];
   const [activeAsana, setActiveAsana] = useState<Asana>(defaultTreePose);
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -77,17 +76,6 @@ export default function App() {
 
       {/* Main View Router */}
       <main className="w-full">
-        {currentView === 'home' && (
-          <HeroScrollExperience
-            onSelectAsana={handleSelectAsana}
-            onExploreLibrary={() => {
-              setCurrentView('library');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            isDark={isDark}
-          />
-        )}
-
         {currentView === 'library' && (
           <AsanaLibrary
             onSelectAsana={handleSelectAsana}

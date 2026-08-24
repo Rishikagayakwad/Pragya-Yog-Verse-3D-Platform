@@ -1,3 +1,9 @@
+/**
+ * Top-level pages. The product is "search an asana, land in the 3D studio",
+ * so the Library is the front door and the Studio is where everything happens.
+ */
+export type AppView = 'library' | 'studio';
+
 export type DifficultyLevel = 'Easy' | 'Intermediate' | 'Hard';
 
 export type MovementType = 'Strength' | 'Mobility' | 'Balance' | 'Flexibility' | 'Restorative';

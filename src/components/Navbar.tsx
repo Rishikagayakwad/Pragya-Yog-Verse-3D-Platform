@@ -1,9 +1,10 @@
 import React from 'react';
 import { Sparkles, Search, Sun, Moon } from 'lucide-react';
+import { AppView } from '../types';
 
 interface NavbarProps {
-  currentView: 'home' | 'library' | 'studio' | 'about';
-  onNavigate: (view: 'home' | 'library' | 'studio' | 'about') => void;
+  currentView: AppView;
+  onNavigate: (view: AppView) => void;
   isDark: boolean;
   onToggleTheme: () => void;
   onOpenSearch: () => void;

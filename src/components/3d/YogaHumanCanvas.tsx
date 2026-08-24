@@ -12,9 +12,9 @@ export interface YogaHumanCanvasProps {
   showAlignmentGrid?: boolean;
   showProps?: boolean;
   /**
-   * Semantic layer selector used by AsanaStudio and HeroScrollExperience.
-   * When provided it is the source of truth for what the viewer shows, and
-   * takes precedence over viewMode / showAnatomyOverlay / showSkeleton.
+   * Semantic layer selector driven by the Studio's side tab. When provided it
+   * is the source of truth for what the viewer shows, and takes precedence
+   * over viewMode / showAnatomyOverlay / showSkeleton.
    */
   activeLayer?: VisualLayerType;
   viewMode?: 'camera' | 'bone' | 'muscle';
