@@ -32,105 +32,10 @@ import {
   Share2
 } from 'lucide-react';
 import { YogaHumanCanvas } from './3d/YogaHumanCanvas';
-import type { Asana, VisualLayerType, ActiveStudioSection, MuscleActivation, ChakraInfo, BodySystemType } from '../types';
+import type { Asana, VisualLayerType, ActiveStudioSection, MuscleActivation, BodySystemType } from '../types';
 import { voiceGuidance } from '../utils/voiceGuidance';
 import { AIYogaTeacherModal } from './AIYogaTeacherModal';
-import { ASANAS } from '../data/asanas';
-
-// 7 Standard Chakras Data for Inspector Carousel Navigation
-const ALL_CHAKRAS_DATA: ChakraInfo[] = [
-  {
-    id: 'muladhara',
-    sanskritName: 'Muladhara',
-    englishName: 'Root Chakra',
-    location: 'Base of spine, pelvic floor',
-    position3D: [0, 0.45, 0],
-    color: '#E53E3E',
-    element: 'Earth (Prithvi)',
-    bijaMantra: 'LAM (लं)',
-    meaning: 'Foundation of stability, security, and physical anchoring into the earth.',
-    activationRole: 'Grounds the lower body and activates stabilizing pelvic muscles.',
-    frequency: 396,
-  },
-  {
-    id: 'svadhisthana',
-    sanskritName: 'Svadhisthana',
-    englishName: 'Sacral Chakra',
-    location: 'Lower abdomen, below navel',
-    position3D: [0, 0.65, 0],
-    color: '#ED8936',
-    element: 'Water (Jala)',
-    bijaMantra: 'VAM (वं)',
-    meaning: 'Fluidity of movement, emotional balance, and creative adaptability.',
-    activationRole: 'Opens hip joints and coordinates pelvic rotation.',
-    frequency: 417,
-  },
-  {
-    id: 'manipura',
-    sanskritName: 'Manipura',
-    englishName: 'Solar Plexus Chakra',
-    location: 'Navel center, solar plexus',
-    position3D: [0, 0.9, 0],
-    color: '#ECC94B',
-    element: 'Fire (Agni)',
-    bijaMantra: 'RAM (रं)',
-    meaning: 'Inner power, willpower, digestion, and core vitality (Sthira).',
-    activationRole: 'Powers transversus abdominis and core equilibrium.',
-    frequency: 528,
-  },
-  {
-    id: 'anahata',
-    sanskritName: 'Anahata',
-    englishName: 'Heart Chakra',
-    location: 'Center of chest',
-    position3D: [0, 1.25, 0],
-    color: '#38A169',
-    element: 'Air (Vayu)',
-    bijaMantra: 'YAM (यं)',
-    meaning: 'Unconditional love, compassion, thoracic expansion, and breath resonance.',
-    activationRole: 'Expands ribcage, pectoral fascia, and shoulder girdle.',
-    frequency: 639,
-  },
-  {
-    id: 'vishuddha',
-    sanskritName: 'Vishuddha',
-    englishName: 'Throat Chakra',
-    location: 'At the throat region',
-    position3D: [0, 1.45, 0],
-    color: '#3182CE',
-    element: 'Ether (Akasha)',
-    bijaMantra: 'HAM (हं)',
-    meaning: 'Communication, Truth, Expression, Purity, and refined sound vibration.',
-    activationRole: 'Aligns cervical spine, releases throat tension, and supports deep Ujjayi.',
-    frequency: 741,
-  },
-  {
-    id: 'ajna',
-    sanskritName: 'Ajna',
-    englishName: 'Third Eye Chakra',
-    location: 'Center of forehead, between eyebrows',
-    position3D: [0, 1.62, 0.05],
-    color: '#805AD5',
-    element: 'Light (Prakasha)',
-    bijaMantra: 'OM (ॐ)',
-    meaning: 'Intuition, mental clarity, drishti concentration, and higher wisdom.',
-    activationRole: 'Sharpens drishti focus and coordinates autonomic nervous regulation.',
-    frequency: 852,
-  },
-  {
-    id: 'sahasrara',
-    sanskritName: 'Sahasrara',
-    englishName: 'Crown Chakra',
-    location: 'Crown of the head',
-    position3D: [0, 1.78, 0],
-    color: '#D53F8C',
-    element: 'Consciousness (Chaitanya)',
-    bijaMantra: 'SILENCE / SO-HAM',
-    meaning: 'Spiritual connection, transcendent awareness, and oneness with the universe.',
-    activationRole: 'Elongates the vertical axis of the spine toward the infinite cosmos.',
-    frequency: 963,
-  },
-];
+import { ASANAS, ALL_CHAKRAS } from '../data/asanas';
 
 // Step Sequence Template for 7-step studio workflow
 const DEFAULT_SEVEN_STEPS = [
@@ -167,7 +72,7 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
   // Anatomical selection state
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleActivation | null>(asana.muscles[0] || null);
   const [selectedChakraIndex, setSelectedChakraIndex] = useState<number>(4); // Vishuddha default (index 4)
-  const selectedChakra = ALL_CHAKRAS_DATA[selectedChakraIndex] || ALL_CHAKRAS_DATA[0];
+  const selectedChakra = ALL_CHAKRAS[selectedChakraIndex] || ALL_CHAKRAS[0];
 
   // 3D Model Viewport Controls
   const [cameraPreset, setCameraPreset] = useState<'360' | 'front' | 'side' | 'back' | 'top'>('side');
@@ -561,6 +466,7 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
             currentStepIndex={currentStepIndex}
             activeLayer={activeLayer}
             selectedMuscleId={selectedMuscle?.id}
+            selectedChakraId={selectedChakra?.id}
             cameraViewPreset={cameraPreset}
             zoomLevel={zoomLevel}
             isDark={isDark}
@@ -848,14 +754,14 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
             {activeSection === 'chakra' && (
               <div className="flex items-center justify-between pt-3 border-t border-black/5 dark:border-white/10">
                 <button
-                  onClick={() => setSelectedChakraIndex((i) => (i > 0 ? i - 1 : ALL_CHAKRAS_DATA.length - 1))}
+                  onClick={() => setSelectedChakraIndex((i) => (i > 0 ? i - 1 : ALL_CHAKRAS.length - 1))}
                   className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
 
                 <div className="flex items-center gap-1.5">
-                  {ALL_CHAKRAS_DATA.map((c, idx) => (
+                  {ALL_CHAKRAS.map((c, idx) => (
                     <button
                       key={c.id}
                       onClick={() => setSelectedChakraIndex(idx)}
@@ -869,7 +775,7 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
                 </div>
 
                 <button
-                  onClick={() => setSelectedChakraIndex((i) => (i < ALL_CHAKRAS_DATA.length - 1 ? i + 1 : 0))}
+                  onClick={() => setSelectedChakraIndex((i) => (i < ALL_CHAKRAS.length - 1 ? i + 1 : 0))}
                   className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />

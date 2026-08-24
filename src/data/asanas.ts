@@ -1,4 +1,4 @@
-import type { Asana } from '../types';
+import type { Asana, ChakraInfo } from '../types';
 
 export const CHAKRAS_UNIVERSAL = {
   root: {
@@ -6,10 +6,10 @@ export const CHAKRAS_UNIVERSAL = {
     sanskritName: 'Muladhara',
     englishName: 'Root Chakra',
     location: 'Base of spine, pelvic floor',
-    position3D: [0, 0.45, 0] as [number, number, number],
+    position3D: [0, 0.85, 0] as [number, number, number],
     color: '#E53E3E',
     element: 'Earth (Prithvi)',
-    bijaMantra: 'LAM',
+    bijaMantra: 'LAM (लं)',
     meaning: 'Foundation, grounding, physical stability and survival instincts.',
     activationRole: 'Establishes foundational rooting through feet and pelvic floor.',
     frequency: 396,
@@ -19,10 +19,10 @@ export const CHAKRAS_UNIVERSAL = {
     sanskritName: 'Svadhisthana',
     englishName: 'Sacral Chakra',
     location: 'Lower abdomen, sacrum',
-    position3D: [0, 0.65, 0] as [number, number, number],
+    position3D: [0, 0.98, 0] as [number, number, number],
     color: '#ED8936',
     element: 'Water (Jala)',
-    bijaMantra: 'VAM',
+    bijaMantra: 'VAM (वं)',
     meaning: 'Creativity, fluidity, emotional equilibrium and adaptability.',
     activationRole: 'Opens pelvic girdle, hip flexors, and reproductive energetic center.',
     frequency: 417,
@@ -32,10 +32,10 @@ export const CHAKRAS_UNIVERSAL = {
     sanskritName: 'Manipura',
     englishName: 'Solar Plexus Chakra',
     location: 'Navel to solar plexus',
-    position3D: [0, 0.88, 0] as [number, number, number],
+    position3D: [0, 1.10, 0] as [number, number, number],
     color: '#D9AE29',
     element: 'Fire (Agni)',
-    bijaMantra: 'RAM',
+    bijaMantra: 'RAM (रं)',
     meaning: 'Willpower, transformation, digestive heat and personal power.',
     activationRole: 'Ignites core stability and abdominal containment (Uddiyana Bandha).',
     frequency: 528,
@@ -45,10 +45,10 @@ export const CHAKRAS_UNIVERSAL = {
     sanskritName: 'Anahata',
     englishName: 'Heart Chakra',
     location: 'Center of chest',
-    position3D: [0, 1.12, 0] as [number, number, number],
+    position3D: [0, 1.28, 0] as [number, number, number],
     color: '#38A169',
     element: 'Air (Vayu)',
-    bijaMantra: 'YAM',
+    bijaMantra: 'YAM (यं)',
     meaning: 'Compassion, unconditional love, balance between physical and spiritual.',
     activationRole: 'Expands thoracic cage, elevates sternum, and dissolves emotional armor.',
     frequency: 639,
@@ -58,10 +58,10 @@ export const CHAKRAS_UNIVERSAL = {
     sanskritName: 'Vishuddha',
     englishName: 'Throat Chakra',
     location: 'Throat, cervical spine',
-    position3D: [0, 1.35, 0] as [number, number, number],
+    position3D: [0, 1.47, 0] as [number, number, number],
     color: '#3182CE',
     element: 'Space / Ether (Akasha)',
-    bijaMantra: 'HAM',
+    bijaMantra: 'HAM (हं)',
     meaning: 'Authentic expression, truth, refined communication and clarity.',
     activationRole: 'Lengthens cervical spine and harmonizes Jalandhara Bandha.',
     frequency: 741,
@@ -71,10 +71,10 @@ export const CHAKRAS_UNIVERSAL = {
     sanskritName: 'Ajna',
     englishName: 'Third Eye Chakra',
     location: 'Between the eyebrows, pineal center',
-    position3D: [0, 1.52, 0.05] as [number, number, number],
+    position3D: [0, 1.60, 0.05] as [number, number, number],
     color: '#553C9A',
     element: 'Light (Jyoti)',
-    bijaMantra: 'OM / AUM',
+    bijaMantra: 'OM (ॐ)',
     meaning: 'Intuition, mental clarity, spiritual vision and inward concentration.',
     activationRole: 'Anchors the Drishti (gaze point) into concentrated awareness.',
     frequency: 852,
@@ -93,6 +93,24 @@ export const CHAKRAS_UNIVERSAL = {
     frequency: 963,
   },
 };
+
+/**
+ * The seven chakras in ascending order along the spine — the single source of
+ * truth for both the Studio's inspector carousel and the 3D chakra layer.
+ *
+ * position3D is in model space: a 1.75m figure with its feet at y = 0, which is
+ * what every rig is normalised to. The column runs from the pelvic floor
+ * (0.85) to the crown (1.72).
+ */
+export const ALL_CHAKRAS: ChakraInfo[] = [
+  CHAKRAS_UNIVERSAL.root,
+  CHAKRAS_UNIVERSAL.sacral,
+  CHAKRAS_UNIVERSAL.solarPlexus,
+  CHAKRAS_UNIVERSAL.heart,
+  CHAKRAS_UNIVERSAL.throat,
+  CHAKRAS_UNIVERSAL.thirdEye,
+  CHAKRAS_UNIVERSAL.crown,
+];
 
 export const ASANAS: Asana[] = [
   {
@@ -131,7 +149,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Rectus Femoris, Vastus Lateralis/Medialis',
         role: 'primary',
         percentage: 92,
-        position3D: [0.35, 0.45, 0.25],
+        position3D: [0.11, 0.65, 0.08],
+        attachTo: 'leftHip',
         description: 'Holds the front knee in a 90-degree flexion, resisting gravitational collapse.',
         biomechanics: 'Generates eccentric and isometric quad tension to stabilize the femorotibial joint without letting the knee collapse inward.'
       },
@@ -141,7 +160,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Gluteus Maximus, Gluteus Medius',
         role: 'primary',
         percentage: 88,
-        position3D: [0.15, 0.62, -0.15],
+        position3D: [0.11, 0.88, -0.10],
+        attachTo: 'leftHip',
         description: 'Externally rotates front hip and abducts rear leg, leveling the pelvis.',
         biomechanics: 'Contracts forcefully to open the pelvic bowl while anchoring the posterior outer edge of the back foot.'
       },
@@ -151,7 +171,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Deltoideus anterior, medius, posterior',
         role: 'secondary',
         percentage: 75,
-        position3D: [0, 1.25, 0],
+        position3D: [0, 1.46, -0.03],
+        attachTo: 'torso',
         description: 'Maintains arm elevation parallel to the ground without creeping into neck tension.',
         biomechanics: 'Middle deltoids hold horizontal abduction while lower trapezius draws the scapulae down the dorsal ribcage.'
       },
@@ -161,7 +182,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Erector Spinae, Transversus Abdominis',
         role: 'stabilizer',
         percentage: 80,
-        position3D: [0, 0.95, -0.1],
+        position3D: [0, 1.12, -0.10],
+        attachTo: 'torso',
         description: 'Maintains vertical axial elongation and prevents forward torso leaning.',
         biomechanics: 'Co-activates with deep abdominal wall to stack the shoulders precisely over the pelvic center of gravity.'
       },
@@ -171,7 +193,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Biceps Femoris, Gastrocnemius',
         role: 'secondary',
         percentage: 70,
-        position3D: [-0.45, 0.4, -0.2],
+        position3D: [-0.11, 0.55, -0.09],
+        attachTo: 'rightHip',
         description: 'Anchors the straight back leg through the knife edge of the foot.',
         biomechanics: 'Stabilizes knee extension and prevents hyperextension through calf and hamstring co-contraction.'
       }
@@ -400,7 +423,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Serratus anterior, Latissimus dorsi',
         role: 'primary',
         percentage: 90,
-        position3D: [0.2, 1.1, 0.15],
+        position3D: [0.16, 1.25, -0.02],
+        attachTo: 'torso',
         description: 'Upwardly rotates scapulae and wraps shoulder blades around the ribcage.',
         biomechanics: 'Prevents shoulder impingement by broadening the upper back and lifting armpits away from the floor.'
       },
@@ -410,7 +434,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Semimembranosus, Semitendinosus, Biceps Femoris',
         role: 'primary',
         percentage: 85,
-        position3D: [0.15, 0.45, -0.1],
+        position3D: [0.11, 0.65, -0.09],
+        attachTo: 'leftHip',
         description: 'Undergoes active eccentric lengthening as ischial tuberosities lift skyward.',
         biomechanics: 'Allows anterior pelvic tilt to maintain neutral lumbar lordosis.'
       },
@@ -420,7 +445,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Triceps brachii, Pronator teres',
         role: 'secondary',
         percentage: 78,
-        position3D: [-0.2, 1.25, 0.1],
+        position3D: [-0.22, 1.28, 0],
+        attachTo: 'rightShoulder',
         description: 'Keeps elbows straight and presses through index finger knuckles.',
         biomechanics: 'Extends the elbow joint while resisting wrist compression.'
       },
@@ -430,7 +456,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Gastrocnemius, Soleus',
         role: 'secondary',
         percentage: 72,
-        position3D: [0.1, 0.2, -0.15],
+        position3D: [0.10, 0.28, -0.06],
+        attachTo: 'leftKnee',
         description: 'Lengthens as heels descend toward the earth.',
         biomechanics: 'Undergoes passive dorsiflexion stretch, enhancing ankle mobility.'
       }
@@ -597,7 +624,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Tibialis anterior, Plantar fascia',
         role: 'primary',
         percentage: 85,
-        position3D: [0.08, 0.05, 0.05],
+        position3D: [0.10, 0.08, 0.03],
+        attachTo: 'leftKnee',
         description: 'Lifts the medial longitudinal foot arch (Pada Bandha).',
         biomechanics: 'Activates deep intrinsic foot muscles to stabilize the ankle mortise.'
       },
@@ -607,7 +635,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Quadriceps, Adductor magnus',
         role: 'secondary',
         percentage: 65,
-        position3D: [0.08, 0.45, 0.05],
+        position3D: [0.10, 0.65, 0.08],
+        attachTo: 'leftHip',
         description: 'Lifts kneecaps and gently draws inner thighs toward the midline.',
         biomechanics: 'Maintains neutral femoral alignment and prevents hyperextension of the knee joints.'
       },
@@ -617,7 +646,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Transversus abdominis, Multifidus',
         role: 'primary',
         percentage: 75,
-        position3D: [0, 0.9, -0.05],
+        position3D: [0, 1.10, -0.06],
+        attachTo: 'torso',
         description: 'Acts as an internal anatomical corset supporting upright posture.',
         biomechanics: 'Maintains intra-abdominal pressure and stacks vertebrae in natural lordotic and kyphotic curves.'
       }
@@ -774,7 +804,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Peroneus longus, brevis',
         role: 'primary',
         percentage: 95,
-        position3D: [0.08, 0.15, 0.05],
+        position3D: [0.10, 0.12, 0.02],
+        attachTo: 'leftKnee',
         description: 'Fires continuous micro-contractions to maintain center of balance.',
         biomechanics: 'Controls inversion and eversion of the subtalar joint in real-time.'
       },
@@ -784,7 +815,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Gluteus medius, Minimus',
         role: 'primary',
         percentage: 90,
-        position3D: [-0.15, 0.65, -0.05],
+        position3D: [-0.11, 0.88, -0.08],
+        attachTo: 'rightHip',
         description: 'Prevents the standing hip from jutting out laterally (Trendelenburg sign).',
         biomechanics: 'Maintains a level pelvic rim against single-leg gravitational torque.'
       },
@@ -794,7 +826,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Piriformis, Gemelli, Obturator internus',
         role: 'secondary',
         percentage: 80,
-        position3D: [0.2, 0.62, -0.1],
+        position3D: [0.11, 0.90, -0.06],
+        attachTo: 'leftHip',
         description: 'Opens the lifted knee out to the side in comfortable external rotation.',
         biomechanics: 'Abducts and rotates the femur without twisting the pelvic girdle.'
       }
@@ -938,7 +971,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Erector spinae (Iliocostalis, Longissimus, Spinalis)',
         role: 'primary',
         percentage: 95,
-        position3D: [0, 0.45, 0.15],
+        position3D: [0, 1.12, -0.10],
+        attachTo: 'torso',
         description: 'Contracts deeply to extend the vertebral column into a continuous arc.',
         biomechanics: 'Produces concentric extensor force along cervical, thoracic, and lumbar spine.'
       },
@@ -948,7 +982,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Gluteus maximus, Biceps femoris',
         role: 'primary',
         percentage: 90,
-        position3D: [0.12, 0.25, 0.1],
+        position3D: [0.11, 0.80, -0.10],
+        attachTo: 'leftHip',
         description: 'Powers the backward and upward kick of the legs.',
         biomechanics: 'Extends the hip joint to pull the torso into higher thoracic expansion.'
       },
@@ -958,7 +993,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Rhomboid major/minor, Posterior deltoid',
         role: 'secondary',
         percentage: 82,
-        position3D: [0.15, 0.65, 0.15],
+        position3D: [0.12, 1.35, -0.10],
+        attachTo: 'torso',
         description: 'Retracts shoulder blades to open the chest anteriorly.',
         biomechanics: 'Draws humerus heads into external rotation and retraction.'
       },
@@ -968,7 +1004,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Iliopsoas, Rectus abdominis',
         role: 'stabilizer',
         percentage: 88,
-        position3D: [0, 0.4, -0.08],
+        position3D: [0, 1.08, 0.10],
+        attachTo: 'torso',
         description: 'Undergoes active eccentric stretch while resting on the abdomen.',
         biomechanics: 'Transfers intra-abdominal pressure into deep visceral massage.'
       }
@@ -1140,7 +1177,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Thoracolumbar fascia, Latissimus dorsi',
         role: 'primary',
         percentage: 80,
-        position3D: [0, 0.25, 0.1],
+        position3D: [0, 1.20, -0.10],
+        attachTo: 'torso',
         description: 'Undergoes passive restorative elongation as the hips settle to heels.',
         biomechanics: 'Opens facet joints in lumbar and lower thoracic vertebrae without strain.'
       },
@@ -1150,7 +1188,8 @@ export const ASANAS: Asana[] = [
         latinName: 'Gluteus maximus, Piriformis',
         role: 'primary',
         percentage: 75,
-        position3D: [0.15, 0.15, 0.15],
+        position3D: [0.11, 0.86, -0.10],
+        attachTo: 'leftHip',
         description: 'Deep passive flexion of the acetabulofemoral joints.',
         biomechanics: 'Encourages pelvic floor and hip capsule relaxation.'
       }

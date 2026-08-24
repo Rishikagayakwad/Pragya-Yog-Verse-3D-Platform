@@ -28,13 +28,42 @@ export type BodySystemType =
   | 'digestive'
   | 'endocrine';
 
+/**
+ * The joints every rig exposes, procedural or loaded GLB. Must stay in sync
+ * with POSE_JOINTS in components/3d/rigJoints.ts.
+ */
+export type RigJointSlot =
+  | 'root'
+  | 'torso'
+  | 'head'
+  | 'leftShoulder'
+  | 'rightShoulder'
+  | 'leftElbow'
+  | 'rightElbow'
+  | 'leftHip'
+  | 'rightHip'
+  | 'leftKnee'
+  | 'rightKnee';
+
 export interface MuscleActivation {
   id: string;
   name: string;
   latinName: string;
   role: 'primary' | 'secondary' | 'stabilizer';
   percentage: number;
-  position3D: [number, number, number]; // [x, y, z] on 3D humanoid
+  /**
+   * Where the muscle sits on a NEUTRAL standing figure — 1.75m tall, feet at
+   * y = 0, facing +z, left side is +x. The marker is parented to a joint and
+   * travels with it into the pose, so this is not where the muscle ends up in
+   * the posture.
+   */
+  position3D: [number, number, number];
+  /**
+   * Which joint the marker rides. Without it the nearest joint is used, which
+   * misplaces torso muscles: with the arms hanging down, the lats sit closer
+   * to the elbow than to the spine, so they would fly up when the arm lifts.
+   */
+  attachTo?: RigJointSlot;
   description: string;
   biomechanics: string;
 }

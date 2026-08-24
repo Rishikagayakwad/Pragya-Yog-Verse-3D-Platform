@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { Asana, VisualLayerType } from '../../types';
 import { createDetailedHumanModel, HumanRigResult } from './detailedHumanModel';
 import { HUMAN_MODEL_URL } from '../../config/model';
+import { createDataLayers, type DataLayers } from './dataLayers';
 
 export interface YogaHumanCanvasProps {
   asana?: Asana;
@@ -20,6 +21,8 @@ export interface YogaHumanCanvasProps {
   activeLayer?: VisualLayerType;
   viewMode?: 'camera' | 'bone' | 'muscle';
   selectedMuscleId?: string | null;
+  /** Highlights one chakra in the spinal column when the chakra layer is on. */
+  selectedChakraId?: string | null;
   cameraViewPreset?: '360' | 'orbit' | 'front' | 'side' | 'back' | 'top';
   zoomLevel?: number;
   isDark?: boolean;
@@ -34,6 +37,71 @@ export interface YogaHumanCanvasProps {
  */
 const ENTRY_STEPS = 2;
 
+/** How far the ribcage widens at the top of an inhale. */
+const BREATH_EXPANSION = 0.06;
+
+interface BreathState {
+  bodyParts: { [key: string]: THREE.Object3D };
+  breathPhases: { phase: string; duration: number }[] | null;
+  breathPhaseIndex: number;
+  breathElapsed: number;
+}
+
+/**
+ * Walks the asana's authored breath cycle and expands the ribcage accordingly.
+ *
+ * The four phases come straight from breathPattern.phases, so a pose with
+ * kumbhaka holds visibly pauses at full and empty rather than breathing evenly.
+ * Expansion is deliberately small — the torso's children include the arms, and
+ * anything larger reads as the whole upper body inflating.
+ */
+function advanceBreath(state: BreathState, delta: number): void {
+  const torso = state.bodyParts.torso;
+  if (!torso) return;
+
+  const phases = state.breathPhases;
+
+  if (!phases || phases.length === 0) {
+    // Settle back to neutral rather than snapping when the layer is switched off.
+    torso.scale.lerp(NEUTRAL_SCALE, 0.08);
+    return;
+  }
+
+  state.breathElapsed += delta;
+
+  let current = phases[state.breathPhaseIndex % phases.length];
+  if (state.breathElapsed >= current.duration) {
+    state.breathElapsed -= current.duration;
+    state.breathPhaseIndex = (state.breathPhaseIndex + 1) % phases.length;
+    current = phases[state.breathPhaseIndex];
+  }
+
+  const through = current.duration > 0 ? state.breathElapsed / current.duration : 0;
+
+  let fullness: number;
+  switch (current.phase) {
+    case 'Inhale':
+      fullness = through;
+      break;
+    case 'Internal Retention':
+      fullness = 1;
+      break;
+    case 'Exhale':
+      fullness = 1 - through;
+      break;
+    default: // External Retention — lungs empty.
+      fullness = 0;
+  }
+
+  // Ease so the turnarounds at full and empty feel like breath, not a sawtooth.
+  const eased = 0.5 - 0.5 * Math.cos(Math.PI * fullness);
+  const widen = 1 + eased * BREATH_EXPANSION;
+
+  torso.scale.set(widen, 1 + eased * BREATH_EXPANSION * 0.4, widen);
+}
+
+const NEUTRAL_SCALE = new THREE.Vector3(1, 1, 1);
+
 export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   asana,
   currentStepIndex = 2, // Step 3/6 default (Warrior II)
@@ -45,12 +113,16 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   activeLayer,
   viewMode = 'camera',
   selectedMuscleId,
+  selectedChakraId,
   cameraViewPreset = 'orbit',
   zoomLevel = 1.0,
   isDark = true,
   className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Always holds the latest rebuild fn, so the async GLB swap inside the
+  // mount-once init effect can trigger a rebuild without a stale closure.
+  const rebuildLayersRef = useRef<() => void>(() => {});
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Three.js instances
@@ -86,6 +158,10 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     basePositionY: number;
     targetPoseRotationY: number;
     currentPoseRotationY: number;
+    dataLayers: DataLayers | null;
+    breathPhases: { phase: string; duration: number }[] | null;
+    breathPhaseIndex: number;
+    breathElapsed: number;
   } | null>(null);
 
   // Initialize Three.js
@@ -515,6 +591,10 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       basePositionY: platformHeight + matHeight,
       targetPoseRotationY: 0,
       currentPoseRotationY: 0,
+      dataLayers: null,
+      breathPhases: null,
+      breathPhaseIndex: 0,
+      breathElapsed: 0,
     };
 
     // 10b. Upgrade to the configured humanoid GLB, if there is one.
@@ -550,6 +630,10 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
           state.clothingMeshes = loaded.clothingMeshes;
 
           state.scene.add(loaded.humanGroup);
+
+          // Markers were parented to the old rig's bones, so rebuild them
+          // against the new skeleton.
+          rebuildLayersRef.current();
           // targetJoints survives the swap, so the animate loop eases the new
           // body into the pose already selected without re-running anything.
         })
@@ -576,6 +660,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     // 11. Render Loop
     let animId: number;
     let clock = new THREE.Clock();
+    let elapsed = 0;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
@@ -621,6 +706,10 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
         part.rotation.y += (targetY - part.rotation.y) * 0.1;
         part.rotation.z += (targetZ - part.rotation.z) * 0.1;
       });
+
+      elapsed += delta;
+      state.dataLayers?.update(elapsed);
+      advanceBreath(state, delta);
 
       state.renderer.render(state.scene, state.camera);
     };
@@ -745,6 +834,64 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   useEffect(() => {
     applyAsanaPose(asana, currentStepIndex);
   }, [asana, currentStepIndex, applyAsanaPose]);
+
+  // --- Data-driven overlay layers ----------------------------------------
+
+  // Markers are parented to specific bones, so they must be rebuilt whenever
+  // the asana changes (different muscles) or the rig is swapped (different
+  // bones). The GLB loader reaches this through rebuildLayersRef.
+  const rebuildDataLayers = useCallback(() => {
+    const state = threeRef.current;
+    if (!state) return;
+
+    state.dataLayers?.dispose();
+    state.dataLayers = createDataLayers(
+      asana,
+      state.bodyParts,
+      state.restRotations,
+      state.humanGroup
+    );
+  }, [asana]);
+
+  useEffect(() => {
+    rebuildLayersRef.current = rebuildDataLayers;
+  }, [rebuildDataLayers]);
+
+  useEffect(() => {
+    rebuildDataLayers();
+    return () => {
+      const state = threeRef.current;
+      state?.dataLayers?.dispose();
+      if (state) state.dataLayers = null;
+    };
+  }, [rebuildDataLayers]);
+
+  // Declared after the rebuild effect so it runs second and re-applies the
+  // current selection to freshly built markers.
+  useEffect(() => {
+    const layers = threeRef.current?.dataLayers;
+    if (!layers) return;
+
+    layers.setChakrasVisible(activeLayer === 'chakras');
+    layers.setMusclesVisible(activeLayer === 'muscles');
+    layers.setSelectedChakra(selectedChakraId);
+    layers.setSelectedMuscle(selectedMuscleId);
+  }, [activeLayer, selectedChakraId, selectedMuscleId, asana]);
+
+  // Breath runs only while its layer is showing, and restarts on each change so
+  // it always begins on the inhale rather than mid-cycle.
+  useEffect(() => {
+    const state = threeRef.current;
+    if (!state) return;
+
+    const phases = asana?.breathPattern?.phases;
+    state.breathPhases =
+      activeLayer === 'breath' && phases && phases.length > 0
+        ? phases.map((p) => ({ phase: p.phase, duration: Math.max(0.5, p.duration) }))
+        : null;
+    state.breathPhaseIndex = 0;
+    state.breathElapsed = 0;
+  }, [activeLayer, asana]);
 
   // Camera Presets & Zoom
   useEffect(() => {
