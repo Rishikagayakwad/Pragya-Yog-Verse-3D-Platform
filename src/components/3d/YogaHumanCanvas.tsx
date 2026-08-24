@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import type { Asana, VisualLayerType } from '../../types';
 import { createDetailedHumanModel, HumanRigResult } from './detailedHumanModel';
-import { HUMAN_MODEL_URL } from '../../config/model';
+import { HUMAN_MODEL_URL, modelIsAvailable } from '../../config/model';
 import { createDataLayers, type DataLayers } from './dataLayers';
 
 export interface YogaHumanCanvasProps {
@@ -606,17 +606,27 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     // because a posable rough model beats an empty stage.
     let cancelled = false;
 
-    if (HUMAN_MODEL_URL) {
-      // Captured locally so the narrowing survives into the callback below.
+    {
       const modelUrl = HUMAN_MODEL_URL;
 
-      // Imported lazily so GLTFLoader is code-split out of the main bundle —
-      // projects running the procedural fallback never download it.
-      import('./humanoidRig')
-        .then(({ loadHumanoidRig }) => loadHumanoidRig(modelUrl))
+      // Probe first, so a project with no model never downloads the loader
+      // chunk and never sees a spurious parse error from the SPA fallback.
+      modelIsAvailable(modelUrl)
+        .then((available) => {
+          if (cancelled) return null;
+          if (!available) {
+            console.info(
+              `[YogaHumanCanvas] No model at ${modelUrl} — using the procedural figure. ` +
+                `Drop a rigged humanoid .glb there to replace it.`
+            );
+            return null;
+          }
+          // Imported lazily so GLTFLoader is code-split out of the main bundle.
+          return import('./humanoidRig').then(({ loadHumanoidRig }) => loadHumanoidRig(modelUrl));
+        })
         .then((loaded) => {
           const state = threeRef.current;
-          if (cancelled || !state) return;
+          if (cancelled || !state || !loaded) return;
 
           state.scene.remove(state.humanGroup);
           loaded.humanGroup.position.copy(state.humanGroup.position);
