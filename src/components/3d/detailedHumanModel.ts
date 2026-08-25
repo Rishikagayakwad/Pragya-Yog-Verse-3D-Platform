@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MODEL_TARGET_HEIGHT } from '../../config/model';
 
 // Generates an ultra-detailed procedural organic human mesh hierarchy
 // with muscle contours, realistic joints, smooth blending, anatomical landmarks,
@@ -144,10 +145,12 @@ export function createDetailedHumanModel(): HumanRigResult {
   const fabricTexture = typeof document !== 'undefined' ? createFabricTexture() : null;
 
   // 2. High-Grade PBR Materials
+  // Skin is matte and entirely non-metallic; the previous 0.38/0.04 gave the
+  // figure a plastic sheen that read as a mannequin under the studio lights.
   const skinMat = new THREE.MeshStandardMaterial({
-    color: 0xdfc2a8,
-    roughness: 0.38,
-    metalness: 0.04,
+    color: 0xe0b48f,
+    roughness: 0.68,
+    metalness: 0.0,
     bumpScale: 0.015,
   });
 
@@ -196,17 +199,18 @@ export function createDetailedHumanModel(): HumanRigResult {
     emissiveIntensity: 0.2,
   });
 
+  // Fabric and hair are dielectric — any metalness makes them look wet.
   const clothingMat = new THREE.MeshStandardMaterial({
     color: 0x14161a,
     map: fabricTexture,
-    roughness: 0.85,
-    metalness: 0.1,
+    roughness: 0.92,
+    metalness: 0.0,
   });
 
   const hairMat = new THREE.MeshStandardMaterial({
     color: 0x2b1d14,
-    roughness: 0.75,
-    metalness: 0.1,
+    roughness: 0.82,
+    metalness: 0.0,
   });
 
   const eyesMat = new THREE.MeshStandardMaterial({
@@ -216,16 +220,57 @@ export function createDetailedHumanModel(): HumanRigResult {
   });
 
   // Helper function to create tapered, organic anatomical segments
+  /**
+   * A limb segment as a smooth surface of revolution rather than a cylinder.
+   *
+   * Cylinders are what made this figure read as a robot: they taper linearly
+   * and end in flat open discs, so every joint showed a hard rim. This lofts a
+   * profile instead —
+   *
+   *   - a muscle belly, thickest around the middle, rather than a straight cone
+   *   - domed ends that tuck into the joint spheres instead of cutting off flat
+   *   - enough radial and profile segments that the silhouette reads as a curve
+   *
+   * Same signature as the cylinder version it replaces, so every call site is
+   * unchanged.
+   */
   function createOrganicCapsule(
     radiusTop: number,
     radiusBottom: number,
     height: number,
     material: THREE.Material,
     scaleX = 1,
-    scaleZ = 1
+    scaleZ = 1,
+    bulge = 0.09
   ): THREE.Mesh {
-    const geom = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 28, 6);
+    const PROFILE_STEPS = 26;
+    const CAP = 0.14; // share of the length spent rounding each end
+    const END_RADIUS = 0.62; // ends keep this much width, so joints stay filled
+
+    const profile: THREE.Vector2[] = [];
+
+    for (let i = 0; i <= PROFILE_STEPS; i++) {
+      const t = i / PROFILE_STEPS; // 0 at the bottom, 1 at the top
+      const y = -height / 2 + t * height;
+
+      // Linear taper from one end to the other, plus a belly through the middle.
+      const taper = radiusBottom + (radiusTop - radiusBottom) * t;
+      let radius = taper * (1 + bulge * Math.sin(Math.PI * t));
+
+      // Ease the last stretch at each end down to END_RADIUS along a quarter
+      // sine, which domes it instead of chamfering it.
+      const easeEnd = (distance: number) =>
+        END_RADIUS + (1 - END_RADIUS) * Math.sin((distance / CAP) * (Math.PI / 2));
+
+      if (t < CAP) radius *= easeEnd(t);
+      else if (t > 1 - CAP) radius *= easeEnd(1 - t);
+
+      profile.push(new THREE.Vector2(Math.max(radius, 0.004), y));
+    }
+
+    const geom = new THREE.LatheGeometry(profile, 32);
     geom.computeVertexNormals();
+
     const mesh = new THREE.Mesh(geom, material);
     mesh.scale.set(scaleX, 1, scaleZ);
     mesh.castShadow = true;
@@ -694,6 +739,36 @@ export function createDetailedHumanModel(): HumanRigResult {
     footBone.position.set(0, -0.42, 0.065);
     knee.add(footBone);
     skeletonGroup.add(footBone);
+  }
+
+  // Normalise to the same contract loadHumanoidRig() guarantees: a figure
+  // MODEL_TARGET_HEIGHT tall with its feet at y = 0.
+  //
+  // The parts were authored around a pelvis at y = 0.94 and drifted — assembled
+  // raw, this rig stands 2.38m with its feet at y = -0.434, so it sank through
+  // the platform, and every chakra and muscle coordinate (authored against a
+  // 1.75m body) landed on the wrong part of it.
+  //
+  // The transform goes on an inner group rather than on humanGroup, so
+  // humanGroup's local space stays the normalised space the asana data is
+  // written in.
+  const body = new THREE.Group();
+  while (humanGroup.children.length > 0) {
+    body.add(humanGroup.children[0]);
+  }
+  humanGroup.add(body);
+
+  body.updateMatrixWorld(true);
+  const rawBounds = new THREE.Box3().setFromObject(body);
+  const rawSize = new THREE.Vector3();
+  rawBounds.getSize(rawSize);
+
+  if (rawSize.y > 0) {
+    body.scale.setScalar(MODEL_TARGET_HEIGHT / rawSize.y);
+    body.updateMatrixWorld(true);
+    const scaledBounds = new THREE.Box3().setFromObject(body);
+    body.position.y -= scaledBounds.min.y;
+    body.updateMatrixWorld(true);
   }
 
   // Rest rotation of every joint, so posing can be expressed as a delta from
