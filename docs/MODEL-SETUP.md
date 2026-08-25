@@ -179,6 +179,29 @@ Then re-run `npm run check-model` on the output.
 
 ---
 
+## Bonus: deriving poses from animation
+
+If your model comes with animation clips — a mocap yoga pack, a Mixamo
+animation, a pose an artist keyed — you can read real joint angles out of it
+instead of hand-authoring them:
+
+\
+> react-example@0.0.0 extract-pose
+> tsx scripts/extract-pose.ts model.glb --list
+
+
+> react-example@0.0.0 extract-pose
+> tsx scripts/extract-pose.ts model.glb --clip Warrior II --time 2.5
+It prints a  block ready to paste into .
+
+This matters because the poses currently in the data are hand-estimated angles,
+which does not scale to a real asana library and is why some of them started out
+anatomically off. Angles sampled from a performance are simply correct.
+
+Note it needs an **animation**, not a model frozen in a pose. A static sculpt in
+Trikonasana has that shape baked into its mesh, not its bones, so there is
+nothing to read.
+
 ## Once it passes
 
 ```bash

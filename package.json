@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "check-model": "tsx scripts/check-model.ts"
+    "check-model": "tsx scripts/check-model.ts",
+    "extract-pose": "tsx scripts/extract-pose.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
