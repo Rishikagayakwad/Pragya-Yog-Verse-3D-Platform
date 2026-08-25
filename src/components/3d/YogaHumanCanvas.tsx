@@ -739,31 +739,27 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     const state = threeRef.current;
     if (!state) return;
 
-    // activeLayer wins when supplied; the booleans remain a lower-level fallback.
-    const effectiveViewMode: 'camera' | 'bone' | 'muscle' = activeLayer
-      ? activeLayer === 'muscles'
-        ? 'muscle'
-        : activeLayer === 'skeleton'
-          ? 'bone'
-          : 'camera'
-      : viewMode;
+    // Two independent controls, deliberately not conflated:
+    //
+    //   the four booleans -> the rig's own layers. They map one-to-one onto the
+    //     VISUAL LAYERS switches, so a toggle does exactly what it says.
+    //   viewMode          -> the Camera/Bone/Muscle focus buttons, which force
+    //     a layer on and fade the skin to make it readable.
+    //   activeLayer       -> the data-driven overlays (chakras, muscle markers,
+    //     breath), handled elsewhere. It only softens the skin here so those
+    //     markers stay visible through the body.
+    const boneFocus = viewMode === 'bone';
+    const muscleFocus = viewMode === 'muscle';
 
-    const isMuscleMode = activeLayer
-      ? activeLayer === 'muscles'
-      : viewMode === 'muscle' || showAnatomyOverlay;
-    const isBoneMode = activeLayer
-      ? activeLayer === 'skeleton'
-      : viewMode === 'bone' || showSkeleton;
-
-    // 1. Muscle Heatmaps (Glowing Thighs, Glutes, Deltoids, Core)
+    // 1. Muscle heatmaps (procedural rig only — a loaded character has none)
     Object.values(state.heatmapMeshes).forEach((mesh) => {
-      mesh.visible = isMuscleMode;
+      mesh.visible = showAnatomyOverlay || muscleFocus;
     });
 
-    // 2. 3D Skeleton (Pelvic bowl, spine vertebrae, ribcage, bones)
-    state.skeletonGroup.visible = isBoneMode;
+    // 2. 3D skeleton (pelvic bowl, vertebrae, ribcage)
+    state.skeletonGroup.visible = showSkeleton || boneFocus;
 
-    // 3. Alignment Grid & Laser Axes
+    // 3. Alignment grid & laser axes
     state.alignmentGridGroup.visible = showAlignmentGrid;
     state.verticalPlumbLine.visible = showAlignmentGrid;
     state.horizontalArmAxis.visible = showAlignmentGrid;
@@ -771,25 +767,18 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     // 4. Props
     state.propBlockMesh.visible = showProps;
 
-    // 5. Skin Transparency Adjustment
+    // 5. Fade the body by however much has to be seen through it.
+    let skinOpacity = 1;
+    if (boneFocus) skinOpacity = 0.22;
+    else if (muscleFocus) skinOpacity = 0.55;
+    else if (showSkeleton && showAnatomyOverlay) skinOpacity = 0.72;
+    else if (showSkeleton) skinOpacity = 0.45;
+    else if (activeLayer === 'chakras' || activeLayer === 'muscles') skinOpacity = 0.82;
+
     state.skinMeshes.forEach((mesh) => {
       const mat = mesh.material as THREE.MeshStandardMaterial;
-      if (effectiveViewMode === 'bone') {
-        mat.opacity = 0.22;
-        mat.transparent = true;
-      } else if (effectiveViewMode === 'muscle') {
-        mat.opacity = 0.55;
-        mat.transparent = true;
-      } else if (isBoneMode && isMuscleMode) {
-        mat.opacity = 0.72;
-        mat.transparent = true;
-      } else if (isBoneMode) {
-        mat.opacity = 0.45;
-        mat.transparent = true;
-      } else {
-        mat.opacity = 1.0;
-        mat.transparent = false;
-      }
+      mat.opacity = skinOpacity;
+      mat.transparent = skinOpacity < 1;
     });
   }, [showAnatomyOverlay, showSkeleton, showAlignmentGrid, showProps, viewMode, activeLayer]);
 

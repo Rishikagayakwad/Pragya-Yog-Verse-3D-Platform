@@ -29,7 +29,12 @@ import {
   Target,
   SlidersHorizontal,
   Bookmark,
-  Share2
+  Share2,
+  Camera,
+  Bone,
+  Dumbbell,
+  Grid3x3,
+  Box as BoxIcon
 } from 'lucide-react';
 import { YogaHumanCanvas } from './3d/YogaHumanCanvas';
 import type { Asana, VisualLayerType, ActiveStudioSection, MuscleActivation, BodySystemType } from '../types';
@@ -76,6 +81,14 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
 
   // 3D Model Viewport Controls
   const [cameraPreset, setCameraPreset] = useState<'360' | 'front' | 'side' | 'back' | 'top'>('side');
+
+  // Camera / Bone / Muscle focus, and the four VISUAL LAYERS switches. These
+  // map one-to-one onto props YogaHumanCanvas already had but nothing drove.
+  const [viewMode, setViewMode] = useState<'camera' | 'bone' | 'muscle'>('camera');
+  const [showAnatomyOverlay, setShowAnatomyOverlay] = useState(true);
+  const [showSkeleton, setShowSkeleton] = useState(true);
+  const [showAlignmentGrid, setShowAlignmentGrid] = useState(true);
+  const [showProps, setShowProps] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   const [isSaved, setIsSaved] = useState<boolean>(false);
 
@@ -418,6 +431,119 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
             <div className="absolute bottom-10 w-64 h-16 rounded-[100%] bg-[#00381F]/10 dark:bg-[#D9AE29]/15 blur-xl pointer-events-none" />
           </div>
 
+          {/* Top-Center Focus Toolbar: Camera / Bone / Muscle */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1 rounded-2xl bg-white/85 dark:bg-[#071912]/85 backdrop-blur-xl border border-black/10 dark:border-[#D9AE29]/30 shadow-lg">
+            {([
+              { id: 'camera', label: 'Camera', Icon: Camera },
+              { id: 'bone', label: 'Bone', Icon: Bone },
+              { id: 'muscle', label: 'Muscle', Icon: Dumbbell },
+            ] as const).map(({ id, label, Icon }) => {
+              const isActive = viewMode === id;
+              return (
+                <button
+                  key={id}
+                  id={`view-mode-${id}`}
+                  onClick={() => setViewMode(id)}
+                  title={
+                    id === 'camera'
+                      ? 'Normal view'
+                      : id === 'bone'
+                        ? 'Fade the skin to read the skeleton'
+                        : 'Fade the skin to read muscle engagement'
+                  }
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-[#944426] text-white dark:bg-[#D9AE29] dark:text-[#00381F] shadow-sm'
+                      : 'text-stone-600 dark:text-stone-300 hover:bg-black/5 dark:hover:bg-white/10'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right-Edge VISUAL LAYERS Switches */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-44 p-2.5 rounded-2xl bg-white/85 dark:bg-[#071912]/85 backdrop-blur-xl border border-black/10 dark:border-[#D9AE29]/30 shadow-lg space-y-1">
+            <div className="text-[9px] font-mono font-bold text-stone-400 px-1 pb-0.5 tracking-widest">
+              VISUAL LAYERS
+            </div>
+
+            {([
+              {
+                id: 'anatomy',
+                label: 'Anatomy Overlay',
+                hint: 'Muscle engagement heatmap',
+                Icon: Activity,
+                value: showAnatomyOverlay,
+                set: setShowAnatomyOverlay,
+              },
+              {
+                id: 'skeleton',
+                label: 'Skeleton',
+                hint: 'Spine, ribcage and joints',
+                Icon: Bone,
+                value: showSkeleton,
+                set: setShowSkeleton,
+              },
+              {
+                id: 'grid',
+                label: 'Alignment Grid',
+                hint: 'Plumb line and mat axes',
+                Icon: Grid3x3,
+                value: showAlignmentGrid,
+                set: setShowAlignmentGrid,
+              },
+              {
+                id: 'props',
+                label: 'Prop Toggle',
+                hint: 'Cork block',
+                Icon: BoxIcon,
+                value: showProps,
+                set: setShowProps,
+              },
+            ] as const).map(({ id, label, hint, Icon, value, set }) => (
+              <button
+                key={id}
+                id={`layer-toggle-${id}`}
+                onClick={() => set(!value)}
+                title={hint}
+                className="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer text-left"
+              >
+                <Icon
+                  className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                    value
+                      ? 'text-[#944426] dark:text-[#D9AE29]'
+                      : 'text-stone-400 dark:text-stone-500'
+                  }`}
+                />
+                <span
+                  className={`flex-1 text-[10px] font-semibold truncate transition-colors ${
+                    value
+                      ? 'text-[#00381F] dark:text-[#F5EFE5]'
+                      : 'text-stone-500 dark:text-stone-400'
+                  }`}
+                >
+                  {label}
+                </span>
+
+                {/* Switch */}
+                <span
+                  className={`relative w-7 h-4 rounded-full shrink-0 transition-colors ${
+                    value ? 'bg-[#944426] dark:bg-[#D9AE29]' : 'bg-stone-300 dark:bg-stone-600'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${
+                      value ? 'left-3.5' : 'left-0.5'
+                    }`}
+                  />
+                </span>
+              </button>
+            ))}
+          </div>
+
           {/* Left Camera Orientation HUD Pills */}
           <div className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1.5 p-1.5 rounded-2xl bg-white/80 dark:bg-[#071912]/80 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-lg font-mono text-[10px]">
             <div className="text-[9px] text-stone-400 font-bold px-1 mb-0.5">VIEW</div>
@@ -465,6 +591,11 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
             asana={asana}
             currentStepIndex={currentStepIndex}
             activeLayer={activeLayer}
+            viewMode={viewMode}
+            showAnatomyOverlay={showAnatomyOverlay}
+            showSkeleton={showSkeleton}
+            showAlignmentGrid={showAlignmentGrid}
+            showProps={showProps}
             selectedMuscleId={selectedMuscle?.id}
             selectedChakraId={selectedChakra?.id}
             cameraViewPreset={cameraPreset}
