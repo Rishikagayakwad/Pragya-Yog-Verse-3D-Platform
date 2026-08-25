@@ -185,14 +185,12 @@ If your model comes with animation clips — a mocap yoga pack, a Mixamo
 animation, a pose an artist keyed — you can read real joint angles out of it
 instead of hand-authoring them:
 
-\
-> react-example@0.0.0 extract-pose
-> tsx scripts/extract-pose.ts model.glb --list
+```bash
+npm run extract-pose -- model.glb --list
+npm run extract-pose -- model.glb --clip "Warrior II" --time 2.5
+```
 
-
-> react-example@0.0.0 extract-pose
-> tsx scripts/extract-pose.ts model.glb --clip Warrior II --time 2.5
-It prints a  block ready to paste into .
+It prints a `poseParameters` block ready to paste into `src/data/asanas.ts`.
 
 This matters because the poses currently in the data are hand-estimated angles,
 which does not scale to a real asana library and is why some of them started out
