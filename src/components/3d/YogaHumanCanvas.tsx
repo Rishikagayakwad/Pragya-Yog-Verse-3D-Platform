@@ -102,6 +102,12 @@ function advanceBreath(state: BreathState, delta: number): void {
 
 const NEUTRAL_SCALE = new THREE.Vector3(1, 1, 1);
 
+// Scratch objects reused by the render loop, so posing allocates nothing.
+const authoredQuat = new THREE.Quaternion();
+const basisInverse = new THREE.Quaternion();
+const targetQuat = new THREE.Quaternion();
+const restQuat = new THREE.Quaternion();
+
 export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   asana,
   currentStepIndex = 2, // Step 3/6 default (Warrior II)
@@ -133,6 +139,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     humanGroup: THREE.Group;
     bodyParts: { [key: string]: THREE.Object3D };
     restRotations: { [key: string]: THREE.Euler };
+    poseBasis: { [key: string]: THREE.Quaternion };
     muscleMeshes: { [key: string]: THREE.Mesh };
     heatmapMeshes: { [key: string]: THREE.Mesh };
     skeletonGroup: THREE.Group;
@@ -566,6 +573,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       humanGroup,
       bodyParts: humanRig.bodyParts,
       restRotations: humanRig.restRotations,
+      poseBasis: humanRig.poseBasis,
       muscleMeshes: humanRig.muscleMeshes,
       heatmapMeshes: humanRig.heatmapMeshes,
       skeletonGroup: humanRig.skeletonGroup,
@@ -634,6 +642,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
           state.humanGroup = loaded.humanGroup;
           state.bodyParts = loaded.bodyParts;
           state.restRotations = loaded.restRotations;
+          state.poseBasis = loaded.poseBasis;
           state.heatmapMeshes = loaded.heatmapMeshes;
           state.skeletonGroup = loaded.skeletonGroup;
           state.skinMeshes = loaded.skinMeshes;
@@ -699,22 +708,37 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
       // Smooth Joint Interpolation.
       //
-      // Authored angles are a delta from the rig's neutral stance, not absolute
-      // rotations. The procedural rig rests at zero so the two are the same
-      // there, but a loaded GLB rests in its bind pose — adding it is what lets
-      // one set of poseParameters drive either rig.
+      // Authored angles are a delta from the rig's neutral stance, expressed in
+      // the studio's canonical axes. Two corrections turn that into a rotation
+      // for whichever rig is loaded:
+      //
+      //   poseBasis conjugation — re-expresses the rotation in the bone's own
+      //     frame. Without it, a Mixamo arm bone takes `leftArm: [0, 0, 1.57]`
+      //     and swings the arm forward instead of out to the side.
+      //   rest composition — the procedural rig rests at zero, a GLB rests in
+      //     its calibrated stance.
+      //
+      // Slerp rather than per-component Euler lerp, so a joint takes the short
+      // way round instead of unwinding through a strange intermediate pose.
       Object.entries(state.targetJoints).forEach(([partName, targetEuler]) => {
         const part = state.bodyParts[partName];
         if (!part) return;
 
         const rest = state.restRotations[partName];
-        const targetX = (rest?.x ?? 0) + targetEuler.x;
-        const targetY = (rest?.y ?? 0) + targetEuler.y;
-        const targetZ = (rest?.z ?? 0) + targetEuler.z;
+        const basis = state.poseBasis[partName];
 
-        part.rotation.x += (targetX - part.rotation.x) * 0.1;
-        part.rotation.y += (targetY - part.rotation.y) * 0.1;
-        part.rotation.z += (targetZ - part.rotation.z) * 0.1;
+        authoredQuat.setFromEuler(targetEuler);
+
+        if (basis) {
+          basisInverse.copy(basis).invert();
+          targetQuat.copy(basis).multiply(authoredQuat).multiply(basisInverse);
+        } else {
+          targetQuat.copy(authoredQuat);
+        }
+
+        if (rest) targetQuat.multiply(restQuat.setFromEuler(rest));
+
+        part.quaternion.slerp(targetQuat, 0.1);
       });
 
       elapsed += delta;

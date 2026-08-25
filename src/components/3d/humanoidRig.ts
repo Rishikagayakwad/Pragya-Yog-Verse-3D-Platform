@@ -4,6 +4,7 @@ import type { HumanRigResult } from './detailedHumanModel';
 import { MODEL_TARGET_HEIGHT } from '../../config/model';
 import {
   POSE_JOINTS,
+  POSE_JOINT_CHILD,
   resolveBoneMap,
   type PoseJoint,
 } from './rigJoints';
@@ -84,15 +85,17 @@ function aimSegment(
 
 /**
  * Brings a loaded rig into the neutral stance poseParameters are authored
- * against: standing with the arms hanging down at the sides (Tadasana).
+ * against: standing with every limb hanging straight down (Tadasana).
  *
  * This matters because rigged humanoids are almost always exported in a T-pose,
  * arms horizontal. The authored angles treat arms-down as zero — Warrior II
  * raises an arm with `leftArm: [0, 0, 1.57]` — so applying them straight to a
  * T-pose would point the arm at the ceiling.
  *
- * The correction is measured from the model's own bone positions rather than
- * hardcoded, so it works for T-pose, A-pose, or anything between.
+ * Limbs are aimed at exactly straight down, matching the procedural rig's rest
+ * exactly. The slight outward splay a standing body has is not baked in here;
+ * the data supplies it (Tadasana carries `leftArm: [0, 0, 0.15]`). Baking it in
+ * instead skews the reference frame and every pose inherits the error.
  */
 function calibrateToNeutralStance(
   bodyParts: { [key: string]: THREE.Object3D },
@@ -100,23 +103,80 @@ function calibrateToNeutralStance(
 ): void {
   const down = new THREE.Vector3(0, -1, 0);
 
-  // Slight outward splay so the arms clear the hips, matching how the
-  // procedural rig rests rather than clipping straight through the body.
-  const leftRest = new THREE.Vector3(-0.18, -1, 0).normalize();
-  const rightRest = new THREE.Vector3(0.18, -1, 0).normalize();
-
-  const segments: [string, string, THREE.Vector3][] = [
-    ['leftShoulder', 'leftElbow', leftRest],
-    ['rightShoulder', 'rightElbow', rightRest],
-    ['leftHip', 'leftKnee', down],
-    ['rightHip', 'rightKnee', down],
-  ];
-
-  for (const [parentSlot, childSlot, direction] of segments) {
+  for (const [parentSlot, childSlot] of Object.entries(POSE_JOINT_CHILD)) {
     const parent = bodyParts[parentSlot];
-    const child = bodyParts[childSlot];
-    if (parent && child) aimSegment(parent, child, direction, root);
+    const child = childSlot ? bodyParts[childSlot] : undefined;
+    if (parent && child) aimSegment(parent, child, down, root);
   }
+}
+
+/**
+ * Orthonormal basis with `y` along the limb and `zHint` resolving the twist.
+ */
+function limbBasis(y: THREE.Vector3, zHint: THREE.Vector3): THREE.Quaternion {
+  const yAxis = y.clone().normalize();
+  let zAxis = zHint.clone().sub(yAxis.clone().multiplyScalar(zHint.dot(yAxis)));
+  if (zAxis.lengthSq() < 1e-8) {
+    zAxis = new THREE.Vector3(1, 0, 0).sub(yAxis.clone().multiplyScalar(yAxis.x));
+  }
+  zAxis.normalize();
+  const xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis).normalize();
+  return new THREE.Quaternion().setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis)
+  );
+}
+
+/**
+ * Per joint, the change of basis taking the studio's canonical axes into that
+ * bone's parent frame.
+ *
+ * Authored angles are written against the procedural rig, whose bones are
+ * axis-aligned: a limb rests along -Y and a +Z rotation swings it sideways.
+ * A Mixamo arm bone does not share those axes, so applying `leftArm:
+ * [0, 0, 1.57]` to it raw swings the arm *forward* instead of out to the side —
+ * measured on a real rig as [0.26, -0.03, 0.96] where it should be
+ * [0.99, 0.00, -0.12].
+ *
+ * Conjugating the authored rotation by this basis expresses it in the bone's
+ * own frame, which brings both rigs back into agreement.
+ */
+function computePoseBasis(
+  bodyParts: { [key: string]: THREE.Object3D },
+  root: THREE.Object3D
+): { [key: string]: THREE.Quaternion } {
+  root.updateMatrixWorld(true);
+
+  const canonical = limbBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1));
+  const poseBasis: { [key: string]: THREE.Quaternion } = {};
+
+  for (const slot of POSE_JOINTS) {
+    const bone = bodyParts[slot];
+    const childSlot = POSE_JOINT_CHILD[slot];
+    const child = childSlot ? bodyParts[childSlot] : undefined;
+
+    // Spine and head have no limb axis to measure, so they keep canonical axes.
+    if (!bone || !child) {
+      poseBasis[slot] = new THREE.Quaternion();
+      continue;
+    }
+
+    // Limb direction and model-forward, both in this bone's PARENT frame —
+    // local rotations are relative to the parent, so that is where the
+    // authored angle has to make sense.
+    const limbInParent = child.position.clone().applyQuaternion(bone.quaternion).normalize();
+
+    const parentWorld = new THREE.Quaternion();
+    (bone.parent ?? root).getWorldQuaternion(parentWorld);
+    const forwardInParent = new THREE.Vector3(0, 0, 1)
+      .applyQuaternion(parentWorld.clone().invert())
+      .normalize();
+
+    poseBasis[slot] = limbBasis(limbInParent, forwardInParent).multiply(
+      canonical.clone().invert()
+    );
+  }
+
+  return poseBasis;
 }
 
 function enhanceMaterial(material: THREE.Material): void {
@@ -192,6 +252,8 @@ export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
     restRotations[slot] = bodyParts[slot].rotation.clone();
   }
 
+  const poseBasis = computePoseBasis(bodyParts, model);
+
   // Keep `pelvis` as an alias so code written against the procedural rig's
   // naming still resolves.
   if (bodyParts.root) {
@@ -210,6 +272,7 @@ export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
     humanGroup,
     bodyParts,
     restRotations,
+    poseBasis,
     muscleMeshes: {},
     heatmapMeshes: {},
     skeletonGroup: new THREE.Group(),

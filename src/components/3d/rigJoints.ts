@@ -46,6 +46,18 @@ export const JOINT_BONE_CANDIDATES: Record<PoseJoint | 'root', string[]> = {
   rightKnee: ['RightLeg', 'RightLowerLeg', 'RightShin', 'RightKnee'],
 };
 
+/**
+ * The joint each limb segment points at, used to measure a bone's actual
+ * direction. Only limbs are listed: the spine and head have no single
+ * unambiguous "next joint" to aim along.
+ */
+export const POSE_JOINT_CHILD: Partial<Record<PoseJoint, PoseJoint>> = {
+  leftShoulder: 'leftElbow',
+  rightShoulder: 'rightElbow',
+  leftHip: 'leftKnee',
+  rightHip: 'rightKnee',
+};
+
 /** Strips rig-tool prefixes so `mixamorig:LeftUpLeg` matches `LeftUpLeg`. */
 export function normalizeBoneName(name: string): string {
   return name.replace(/^mixamorig[:_]?/i, '').replace(/^Armature\|/, '');

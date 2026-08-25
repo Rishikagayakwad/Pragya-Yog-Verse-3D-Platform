@@ -15,6 +15,12 @@ export interface HumanRigResult {
    * procedural rig (rest is all zeros) and a loaded GLB (rest is its bind pose).
    */
   restRotations: { [key: string]: THREE.Euler };
+  /**
+   * Change of basis from the studio canonical axes into each bone's parent
+   * frame. Identity here — this rig is built axis-aligned, which is the
+   * convention poseParameters are authored against.
+   */
+  poseBasis: { [key: string]: THREE.Quaternion };
   muscleMeshes: { [key: string]: THREE.Mesh };
   heatmapMeshes: { [key: string]: THREE.Mesh };
   skeletonGroup: THREE.Group;
@@ -775,14 +781,17 @@ export function createDetailedHumanModel(): HumanRigResult {
   // the rig's neutral stance. This rig is authored at zero, but a loaded GLB
   // carries real bind-pose rotations, and both go through the same code path.
   const restRotations: { [key: string]: THREE.Euler } = {};
+  const poseBasis: { [key: string]: THREE.Quaternion } = {};
   for (const [name, part] of Object.entries(bodyParts)) {
     restRotations[name] = part.rotation.clone();
+    poseBasis[name] = new THREE.Quaternion();
   }
 
   return {
     humanGroup,
     bodyParts,
     restRotations,
+    poseBasis,
     muscleMeshes,
     heatmapMeshes,
     skeletonGroup,
