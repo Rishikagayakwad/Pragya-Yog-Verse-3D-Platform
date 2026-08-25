@@ -108,6 +108,37 @@ const basisInverse = new THREE.Quaternion();
 const targetQuat = new THREE.Quaternion();
 const restQuat = new THREE.Quaternion();
 
+/**
+ * Turns an authored angle into the rotation a specific bone should hold.
+ *
+ * Two corrections are folded in:
+ *   poseBasis conjugation — re-expresses the rotation in the bone's own frame.
+ *     Without it a Mixamo arm bone reads `leftArm: [0, 0, 1.57]` as "swing
+ *     forward" instead of "swing out to the side".
+ *   rest composition — the procedural rig rests at zero, a loaded GLB rests in
+ *     its calibrated stance.
+ *
+ * Writes into `out` and returns it, so callers can slerp toward it or snap to it.
+ */
+function poseQuaternionFor(
+  out: THREE.Quaternion,
+  authored: THREE.Euler,
+  basis: THREE.Quaternion | undefined,
+  rest: THREE.Euler | undefined
+): THREE.Quaternion {
+  authoredQuat.setFromEuler(authored);
+
+  if (basis) {
+    basisInverse.copy(basis).invert();
+    out.copy(basis).multiply(authoredQuat).multiply(basisInverse);
+  } else {
+    out.copy(authoredQuat);
+  }
+
+  if (rest) out.multiply(restQuat.setFromEuler(rest));
+  return out;
+}
+
 export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   asana,
   currentStepIndex = 2, // Step 3/6 default (Warrior II)
@@ -653,10 +684,32 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
           state.scene.add(loaded.humanGroup);
 
+          // Snap the new body straight into the pose already selected, rather
+          // than letting the render loop ease it there from the neutral stance.
+          // The swap lands a second or two after the studio opened, so easing
+          // reads as the model briefly standing to attention before assuming
+          // the asana.
+          Object.entries(state.targetJoints).forEach(([partName, targetEuler]) => {
+            const part = state.bodyParts[partName];
+            if (!part) return;
+            part.quaternion.copy(
+              poseQuaternionFor(
+                targetQuat,
+                targetEuler,
+                state.poseBasis[partName],
+                state.restRotations[partName]
+              )
+            );
+          });
+          state.currentElevation = state.targetElevation;
+          state.currentPoseRotationY = state.targetPoseRotationY;
+          state.humanGroup.updateMatrixWorld(true);
+
           // Markers were parented to the old rig's bones, so rebuild them
           // against the new skeleton.
           rebuildLayersRef.current();
-          // targetJoints survives the swap, so the animate loop eases the new
+
+         // targetJoints survives the swap, so the animate loop eases the new
           // body into the pose already selected without re-running anything.
         })
         .catch((err) => {
@@ -727,19 +780,12 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
         const part = state.bodyParts[partName];
         if (!part) return;
 
-        const rest = state.restRotations[partName];
-        const basis = state.poseBasis[partName];
-
-        authoredQuat.setFromEuler(targetEuler);
-
-        if (basis) {
-          basisInverse.copy(basis).invert();
-          targetQuat.copy(basis).multiply(authoredQuat).multiply(basisInverse);
-        } else {
-          targetQuat.copy(authoredQuat);
-        }
-
-        if (rest) targetQuat.multiply(restQuat.setFromEuler(rest));
+        poseQuaternionFor(
+          targetQuat,
+          targetEuler,
+          state.poseBasis[partName],
+          state.restRotations[partName]
+        );
 
         part.quaternion.slerp(targetQuat, 0.1);
       });

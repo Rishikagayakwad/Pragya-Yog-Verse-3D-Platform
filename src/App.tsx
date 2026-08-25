@@ -6,10 +6,25 @@ import { SearchModal } from './components/SearchModal';
 import { ASANAS } from './data/asanas';
 import type { Asana, AppView } from './types';
 
+/**
+ * Reads `?asana=<slug>` so a posture has its own shareable address.
+ *
+ * Without it the studio is unreachable except by clicking through the library,
+ * which means a pose cannot be linked, bookmarked, or opened directly.
+ */
+function asanaFromUrl(): Asana | null {
+  if (typeof window === 'undefined') return null;
+  const slug = new URLSearchParams(window.location.search).get('asana');
+  if (!slug) return null;
+  return ASANAS.find((a) => a.slug === slug || a.id === slug) ?? null;
+}
+
 export default function App() {
-  const [currentView, setCurrentView] = useState<AppView>('library');
+  const linkedAsana = typeof window !== 'undefined' ? asanaFromUrl() : null;
+
+  const [currentView, setCurrentView] = useState<AppView>(linkedAsana ? 'studio' : 'library');
   const defaultTreePose = ASANAS.find((a) => a.slug === 'vrikshasana') || ASANAS[0];
-  const [activeAsana, setActiveAsana] = useState<Asana>(defaultTreePose);
+  const [activeAsana, setActiveAsana] = useState<Asana>(linkedAsana ?? defaultTreePose);
   const [isDark, setIsDark] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('pragya_yog_theme') || localStorage.getItem('3d_asana_theme');
@@ -44,9 +59,31 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Keep the address bar in step, so the browser Back button and a copied link
+  // both behave the way people expect.
+  const syncUrl = (slug: string | null) => {
+    const url = slug ? `${window.location.pathname}?asana=${slug}` : window.location.pathname;
+    window.history.pushState({ asana: slug }, '', url);
+  };
+
+  useEffect(() => {
+    const onPopState = () => {
+      const linked = asanaFromUrl();
+      if (linked) {
+        setActiveAsana(linked);
+        setCurrentView('studio');
+      } else {
+        setCurrentView('library');
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   const handleSelectAsana = (asana: Asana) => {
     setActiveAsana(asana);
     setCurrentView('studio');
+    syncUrl(asana.slug);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -54,6 +91,7 @@ export default function App() {
     const found = ASANAS.find((a) => a.slug === slug || a.id === slug);
     if (found) {
       setActiveAsana(found);
+      syncUrl(found.slug);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -89,6 +127,7 @@ export default function App() {
             onSelectOtherAsana={handleSelectOtherAsana}
             onBack={() => {
               setCurrentView('library');
+              syncUrl(null);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             isDark={isDark}
