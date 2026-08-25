@@ -39,6 +39,9 @@ and point `src/config/model.ts` at it, or set the env var:
 VITE_HUMAN_MODEL_URL=/models/your-model.glb
 ```
 
+Full step-by-step instructions — which sites, which settings, licensing — are in
+[docs/MODEL-SETUP.md](docs/MODEL-SETUP.md). Validate any candidate with `npm run check-model`.
+
 The model must have a standard humanoid skeleton using Mixamo bone naming
 (`Hips`, `Spine`, `LeftUpLeg`, `LeftForeArm`, … with or without a `mixamorig:`
 prefix). Ready Player Me and Mixamo exports both qualify. The loader resolves

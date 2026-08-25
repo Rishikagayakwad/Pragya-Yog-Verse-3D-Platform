@@ -29,6 +29,10 @@ and its feet are stood on the mat automatically.
 
 ## Where to get one
 
+> Full walkthrough with exact sites, settings and licensing caveats:
+> [../../docs/MODEL-SETUP.md](../../docs/MODEL-SETUP.md)
+> Validate any file with `npm run check-model`.
+
 - **Ready Player Me** — free, browser-based, gives a `.glb` URL in a couple of
   minutes. Correct rig out of the box. Stylised-realistic, and clothed.
 - **Mixamo** (Adobe account, free) — upload or pick a character, download as
