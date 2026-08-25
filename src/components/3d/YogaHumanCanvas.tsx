@@ -143,6 +143,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     muscleMeshes: { [key: string]: THREE.Mesh };
     heatmapMeshes: { [key: string]: THREE.Mesh };
     skeletonGroup: THREE.Group;
+    skeletonParts: THREE.Object3D[];
     skinMeshes: THREE.Mesh[];
     clothingMeshes: THREE.Mesh[];
     alignmentGridGroup: THREE.Group;
@@ -577,6 +578,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       muscleMeshes: humanRig.muscleMeshes,
       heatmapMeshes: humanRig.heatmapMeshes,
       skeletonGroup: humanRig.skeletonGroup,
+      skeletonParts: humanRig.skeletonParts,
       skinMeshes: humanRig.skinMeshes,
       clothingMeshes: humanRig.clothingMeshes,
       alignmentGridGroup,
@@ -645,6 +647,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
           state.poseBasis = loaded.poseBasis;
           state.heatmapMeshes = loaded.heatmapMeshes;
           state.skeletonGroup = loaded.skeletonGroup;
+          state.skeletonParts = loaded.skeletonParts;
           state.skinMeshes = loaded.skinMeshes;
           state.clothingMeshes = loaded.clothingMeshes;
 
@@ -780,8 +783,12 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       mesh.visible = showAnatomyOverlay || muscleFocus;
     });
 
-    // 2. 3D skeleton (pelvic bowl, vertebrae, ribcage)
-    state.skeletonGroup.visible = showSkeleton || boneFocus;
+    // 2. 3D skeleton. The procedural rig keeps its bones under one group; a
+    //    loaded GLB has them parented to individual bones so they follow the
+    //    pose, and those are toggled individually.
+    const skeletonOn = showSkeleton || boneFocus;
+    state.skeletonGroup.visible = skeletonOn;
+    for (const part of state.skeletonParts) part.visible = skeletonOn;
 
     // 3. Alignment grid & laser axes
     state.alignmentGridGroup.visible = showAlignmentGrid;
@@ -896,10 +903,18 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     if (!layers) return;
 
     layers.setChakrasVisible(activeLayer === 'chakras');
-    layers.setMusclesVisible(activeLayer === 'muscles');
+
+    // The data-driven muscle zones are the only anatomy a loaded character can
+    // show — its body is one skinned mesh with no separable muscle geometry —
+    // so the Anatomy Overlay switch and the Muscle focus button drive them too,
+    // not just the Muscles layer. On the procedural rig they sit alongside its
+    // own heatmap meshes.
+    layers.setMusclesVisible(
+      activeLayer === 'muscles' || showAnatomyOverlay || viewMode === 'muscle'
+    );
     layers.setSelectedChakra(selectedChakraId);
     layers.setSelectedMuscle(selectedMuscleId);
-  }, [activeLayer, selectedChakraId, selectedMuscleId, asana]);
+  }, [activeLayer, selectedChakraId, selectedMuscleId, asana, showAnatomyOverlay, viewMode]);
 
   // Breath runs only while its layer is showing, and restarts on each change so
   // it always begins on the inhale rather than mid-cycle.

@@ -93,9 +93,6 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
   const [isSaved, setIsSaved] = useState<boolean>(false);
 
   // Breath Visualizer State
-  const [isBreathingActive, setIsBreathingActive] = useState(false);
-  const [breathPhaseIndex, setBreathPhaseIndex] = useState(0);
-  const [breathSecondsLeft, setBreathSecondsLeft] = useState(4);
 
   // AI Teacher Modal
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -153,8 +150,9 @@ export const AsanaStudio: React.FC<AsanaStudioProps> = ({
     } else if (section === 'muscles') {
       setActiveLayer('muscles');
     } else if (section === 'breath') {
+      // The canvas runs the breath cycle off activeLayer; there is no separate
+      // flag to raise.
       setActiveLayer('breath');
-      setIsBreathingActive(true);
     } else if (section === 'ai-teacher') {
       setIsAIOpen(true);
     } else if (section === 'steps' || section === 'position' || section === 'drishti') {

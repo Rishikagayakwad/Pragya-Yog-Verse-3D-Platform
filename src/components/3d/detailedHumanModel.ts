@@ -24,6 +24,11 @@ export interface HumanRigResult {
   muscleMeshes: { [key: string]: THREE.Mesh };
   heatmapMeshes: { [key: string]: THREE.Mesh };
   skeletonGroup: THREE.Group;
+  /**
+   * Skeleton pieces that are parented to individual bones and so cannot live
+   * under skeletonGroup. Empty for this rig, populated for a loaded GLB.
+   */
+  skeletonParts: THREE.Object3D[];
   skinMeshes: THREE.Mesh[];
   clothingMeshes: THREE.Mesh[];
   materials: {
@@ -795,6 +800,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     muscleMeshes,
     heatmapMeshes,
     skeletonGroup,
+    skeletonParts: [],
     skinMeshes,
     clothingMeshes,
     materials: {

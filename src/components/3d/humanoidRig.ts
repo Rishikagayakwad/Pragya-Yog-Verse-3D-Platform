@@ -179,6 +179,76 @@ function computePoseBasis(
   return poseBasis;
 }
 
+/**
+ * Builds visible bone geometry from the model's own skeleton.
+ *
+ * A loaded character is a single skinned mesh — it has no separable skeleton to
+ * switch on, which left the Skeleton layer dead on anything but the procedural
+ * figure. The bone hierarchy is right there in the rig though, so this draws it:
+ * one tapered spindle per bone-to-child segment, plus a bead at each joint.
+ *
+ * Each spindle is parented to its bone, so it tracks the pose for free. That
+ * means they cannot also live under a single group, hence the flat list — the
+ * studio toggles their visibility individually.
+ */
+function buildSkeletonFromBones(root: THREE.Object3D): THREE.Object3D[] {
+  const boneMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf3f4f6,
+    roughness: 0.3,
+    metalness: 0.05,
+    emissive: 0xe5e7eb,
+    emissiveIntensity: 0.25,
+    transparent: true,
+    opacity: 0.95,
+    // Drawn over the body, which is faded to translucent in bone view.
+    depthWrite: false,
+  });
+
+  const parts: THREE.Object3D[] = [];
+  const bones: THREE.Object3D[] = [];
+  root.traverse((child) => {
+    if ((child as THREE.Bone).isBone) bones.push(child);
+  });
+
+  const axis = new THREE.Vector3(0, 1, 0);
+
+  // Thickness follows bone length — a fixed radius turns finger bones into
+  // clubs, since segments here range from about 2cm to 44cm.
+  const thicknessFor = (length: number) => Math.min(0.028, Math.max(0.007, length * 0.085));
+
+  for (const bone of bones) {
+    const boneChildren = bone.children.filter((c) => (c as THREE.Bone).isBone);
+    const longest = boneChildren.reduce((max, c) => Math.max(max, c.position.length()), 0);
+
+    const joint = new THREE.Mesh(
+      new THREE.SphereGeometry(Math.max(0.008, thicknessFor(longest) * 0.75), 10, 10),
+      boneMaterial
+    );
+    bone.add(joint);
+    parts.push(joint);
+
+    for (const child of boneChildren) {
+      const offset = child.position;
+      const length = offset.length();
+      // Skip near-coincident helper bones; a spindle there is just z-fighting.
+      if (length < 0.02) continue;
+
+      // An octahedron reads as a bone at a glance and costs 8 triangles.
+      const radius = thicknessFor(length);
+      const spindle = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), boneMaterial);
+      spindle.scale.set(radius, length / 2, radius);
+      spindle.position.copy(offset).multiplyScalar(0.5);
+      spindle.quaternion.setFromUnitVectors(axis, offset.clone().normalize());
+
+      bone.add(spindle);
+      parts.push(spindle);
+    }
+  }
+
+  for (const part of parts) part.visible = false;
+  return parts;
+}
+
 function enhanceMaterial(material: THREE.Material): void {
   const standard = material as THREE.MeshStandardMaterial;
   if (standard.isMeshStandardMaterial) {
@@ -276,6 +346,7 @@ export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
     muscleMeshes: {},
     heatmapMeshes: {},
     skeletonGroup: new THREE.Group(),
+    skeletonParts: buildSkeletonFromBones(model),
     skinMeshes,
     clothingMeshes: [],
     materials: {
