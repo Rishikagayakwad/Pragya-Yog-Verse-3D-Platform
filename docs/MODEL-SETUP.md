@@ -82,7 +82,7 @@ Mixamo naming, so it works immediately. Not photoreal, but a real human figure.
 3. Click **Download**
    - Format: **FBX Binary (.fbx)**
    - Pose: **T-pose**
-4. Convert to `.glb` — see [Converting to GLB](#converting-to-glb) below
+4. Convert it: `npm run convert-model -- <file.fbx>` (see [Converting to GLB](#converting-to-glb))
 5. `npm run check-model`, then save to `public/models/human.glb`
 
 **Expect:** game-quality realistic characters. Rigging is guaranteed correct —
@@ -151,19 +151,45 @@ paid for the model.
 
 ## Converting to GLB
 
-Needed for anything that is not already `.glb`. Blender is free:
-**https://www.blender.org/download/**
+Mixamo, MakeHuman and most marketplaces hand you an `.fbx`. The browser cannot
+load that, so it has to become a `.glb`.
 
-1. Open Blender, delete the default cube (`X`)
+### Option A — one command (no Blender)
+
+```bash
+npm run convert-model -- ~/Downloads/character.fbx
+```
+
+That converts it, prints the file size, and immediately validates the result —
+rigged or not, which joints resolved, textures embedded. If it passes:
+
+```bash
+npm run convert-model -- ~/Downloads/character.fbx --out public/models/human.glb
+```
+
+It uses Meta's FBX2glTF under the hood, which preserves the skeleton and skin
+weights. That matters: naive online FBX converters routinely drop the rig, and
+you only find out when the model refuses to pose.
+
+> Installed as a dev dependency (~35 MB, three platform binaries). If it is
+> missing: `npm install --save-dev fbx2gltf`
+
+### Option B — Blender (fallback for unusual or very old FBX files)
+
+Free from **https://www.blender.org/download/**
+
+1. Open Blender, delete the default cube (select it, press `X`)
 2. **File → Import → FBX (.fbx)** and choose your file
-3. Check the armature came in — you should see the bones in the outliner
+3. **Check the armature came in** — you should see a bone hierarchy in the
+   Outliner panel, top right. If there are no bones, the model is not rigged
+   and no export will fix that.
 4. **File → Export → glTF 2.0 (.glb/.gltf)**
 5. In the export panel on the right:
-   - **Format: glTF Binary (.glb)** ← this embeds the textures
+   - **Format: glTF Binary (.glb)** ← this is what embeds the textures
    - **Include → Limit to Selected Objects: OFF** (so the armature exports too)
    - **Data → Mesh → Apply Modifiers: ON**
    - **Data → Armature → Export Deformation Bones Only: ON** (smaller file)
-6. Export, then run `npm run check-model -- <your file>`
+6. Export, then `npm run check-model -- <your file>`
 
 ---
 
