@@ -195,13 +195,34 @@ Free from **https://www.blender.org/download/**
 
 ## Keeping it small
 
-Every visitor downloads this file. Aim for under 15 MB.
+Every visitor downloads this file, so size is a real cost.
 
 ```bash
-npx gltf-transform optimize in.glb out.glb --compress draco --texture-size 2048
+npm run optimize-model -- model.glb --out public/models/human.glb
 ```
 
-Then re-run `npm run check-model` on the output.
+Character models are texture-bound, not geometry-bound. A stock Mixamo download
+arrives with 4096×4096 maps — about 40 MB of file, of which roughly 39 MB is
+images. At the size the figure occupies on screen, 1024 is indistinguishable:
+
+```
+Ch02_1001_Normal.png   4096x4096 -> 1024x1024   19.2 MB -> 1.4 MB
+Ch02_1001_Diffuse.png  4096x4096 -> 1024x1024   13.8 MB -> 1.3 MB
+Ch02_1002_Diffuse.png  2048x2048 -> 1024x1024    3.7 MB -> 1.0 MB
+
+39.9 MB -> 6.4 MB  (84% smaller)
+```
+
+Pass `--max 2048` if you want more detail at the cost of size. The output is
+validated automatically.
+
+PNG textures stay PNG — converting them to JPEG would drop the alpha channel,
+and hair and other `BLEND` materials need it.
+
+> Uses jimp rather than sharp on purpose. `npx gltf-transform resize` is the
+> usual advice, but it depends on native libvips, and a mismatched build fails
+> with `colourspace: parameter space not set`. jimp is pure JavaScript, so this
+> works regardless.
 
 ---
 
