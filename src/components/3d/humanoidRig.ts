@@ -29,7 +29,7 @@ export class HumanoidRigError extends Error {
   }
 }
 
-/** Scales the model to MODEL_TARGET_HEIGHT and stands its feet on y = 0. */
+/** Scales the model to MODEL_TARGET_HEIGHT, centers it on the yoga mat, and stands its feet on y = 0. */
 function normalizeToStudioScale(model: THREE.Group): void {
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3();
@@ -44,6 +44,8 @@ function normalizeToStudioScale(model: THREE.Group): void {
 
   const scaled = new THREE.Box3().setFromObject(model);
   model.position.y -= scaled.min.y;
+  model.position.x -= (scaled.min.x + scaled.max.x) / 2;
+  model.position.z -= (scaled.min.z + scaled.max.z) / 2;
 }
 
 /**
@@ -252,9 +254,21 @@ function buildSkeletonFromBones(root: THREE.Object3D): THREE.Object3D[] {
 function enhanceMaterial(material: THREE.Material): void {
   const standard = material as THREE.MeshStandardMaterial;
   if (standard.isMeshStandardMaterial) {
-    // The studio lights hot; clamp the extremes so skin doesn't blow out.
-    standard.roughness = Math.max(0.25, standard.roughness ?? 0.4);
-    standard.metalness = Math.min(0.2, standard.metalness ?? 0.05);
+    if (standard.map) {
+      standard.map.colorSpace = THREE.SRGBColorSpace;
+      standard.map.needsUpdate = true;
+    }
+    if (standard.normalMap) {
+      standard.normalScale.set(1.0, 1.0);
+    }
+    // Studio lighting adjustment:
+    // If emissive is set to full white (1,1,1) by GLTFExporter, reset emissive to black so it doesn't wash out
+    if (standard.emissive && standard.emissive.r >= 0.8 && standard.emissive.g >= 0.8 && standard.emissive.b >= 0.8) {
+      standard.emissive.set(0x000000);
+      standard.emissiveIntensity = 0;
+    }
+    standard.roughness = Math.max(0.35, Math.min(standard.roughness ?? 0.6, 0.75));
+    standard.metalness = Math.min(0.12, standard.metalness ?? 0.05);
     standard.needsUpdate = true;
   }
 }
@@ -268,6 +282,109 @@ function loadGltf(url: string): Promise<THREE.Group> {
       (err) => reject(new HumanoidRigError(`Could not load model at ${url}: ${String(err)}`))
     );
   });
+}
+
+/**
+ * Builds anatomical proxy joints and skeleton overlay for scanned / non-rigged GLB models
+ */
+function buildScanModelRig(model: THREE.Group): {
+  bodyParts: { [key: string]: THREE.Object3D };
+  skeletonGroup: THREE.Group;
+  skeletonParts: THREE.Object3D[];
+} {
+  const bodyParts: { [key: string]: THREE.Object3D } = {};
+  const skeletonGroup = new THREE.Group();
+  const skeletonParts: THREE.Object3D[] = [];
+
+  const boneMaterial = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    emissive: 0x94a3b8,
+    emissiveIntensity: 0.45,
+    roughness: 0.3,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+  });
+
+  const jointCoords: { [key: string]: [number, number, number] } = {
+    root: [0, 0.92, 0],
+    pelvis: [0, 0.92, 0],
+    torso: [0, 1.12, 0],
+    chest: [0, 1.32, 0],
+    neck: [0, 1.50, 0],
+    head: [0, 1.65, 0],
+    leftShoulder: [-0.19, 1.38, 0],
+    rightShoulder: [0.19, 1.38, 0],
+    leftElbow: [-0.42, 1.36, 0],
+    rightElbow: [0.42, 1.36, 0],
+    leftWrist: [-0.68, 1.35, 0],
+    rightWrist: [0.68, 1.35, 0],
+    leftHip: [-0.14, 0.88, 0],
+    rightHip: [0.14, 0.88, 0],
+    leftKnee: [-0.18, 0.48, 0],
+    rightKnee: [0.18, 0.48, 0],
+    leftAnkle: [-0.22, 0.08, 0],
+    rightAnkle: [0.22, 0.08, 0],
+  };
+
+  // Create anchor Object3D nodes
+  for (const [key, [x, y, z]] of Object.entries(jointCoords)) {
+    const node = new THREE.Object3D();
+    node.name = key;
+    node.position.set(x, y, z);
+    model.add(node);
+    bodyParts[key] = node;
+  }
+
+  // Build skeleton visual connections
+  const connections: [string, string][] = [
+    ['root', 'torso'],
+    ['torso', 'chest'],
+    ['chest', 'neck'],
+    ['neck', 'head'],
+    ['chest', 'leftShoulder'],
+    ['leftShoulder', 'leftElbow'],
+    ['leftElbow', 'leftWrist'],
+    ['chest', 'rightShoulder'],
+    ['rightShoulder', 'rightElbow'],
+    ['rightElbow', 'rightWrist'],
+    ['pelvis', 'leftHip'],
+    ['leftHip', 'leftKnee'],
+    ['leftKnee', 'leftAnkle'],
+    ['pelvis', 'rightHip'],
+    ['rightHip', 'rightKnee'],
+    ['rightKnee', 'rightAnkle'],
+  ];
+
+  const yAxis = new THREE.Vector3(0, 1, 0);
+
+  for (const [key, [x, y, z]] of Object.entries(jointCoords)) {
+    const jointSphere = new THREE.Mesh(new THREE.SphereGeometry(0.016, 12, 12), boneMaterial);
+    jointSphere.position.set(x, y, z);
+    jointSphere.visible = false;
+    skeletonGroup.add(jointSphere);
+    skeletonParts.push(jointSphere);
+  }
+
+  for (const [fromKey, toKey] of connections) {
+    const from = new THREE.Vector3(...jointCoords[fromKey]);
+    const to = new THREE.Vector3(...jointCoords[toKey]);
+    const dir = to.clone().sub(from);
+    const length = dir.length();
+    if (length > 0.01) {
+      const boneMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, length, 8), boneMaterial);
+      const mid = from.clone().add(to).multiplyScalar(0.5);
+      boneMesh.position.copy(mid);
+      boneMesh.quaternion.setFromUnitVectors(yAxis, dir.clone().normalize());
+      boneMesh.visible = false;
+      skeletonGroup.add(boneMesh);
+      skeletonParts.push(boneMesh);
+    }
+  }
+
+  model.add(skeletonGroup);
+  return { bodyParts, skeletonGroup, skeletonParts };
 }
 
 export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
@@ -291,17 +408,49 @@ export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
     }
   });
 
+  normalizeToStudioScale(model);
+
   const { boneMap, missing } = resolveBoneMap([...nodesByName.keys()]);
 
+  // If the model does not have a skeletal rig (e.g. photorealistic 3D human scan),
+  // adapt it gracefully with virtual anatomical anchors and overlays
   if (missing.length > 0) {
-    throw new HumanoidRigError(
-      `Model at ${url} is missing ${missing.length} required joint(s): ${missing.join(', ')}. ` +
-        `It needs a standard humanoid skeleton (Mixamo naming).`,
-      missing
-    );
-  }
+    const { bodyParts, skeletonGroup, skeletonParts } = buildScanModelRig(model);
+    const restRotations: { [key: string]: THREE.Euler } = {};
+    const poseBasis: { [key: string]: THREE.Quaternion } = {};
 
-  normalizeToStudioScale(model);
+    for (const slot of Object.keys(bodyParts)) {
+      restRotations[slot] = new THREE.Euler(0, 0, 0);
+      poseBasis[slot] = new THREE.Quaternion();
+    }
+
+    const humanGroup = new THREE.Group();
+    humanGroup.add(model);
+
+    return {
+      humanGroup,
+      bodyParts,
+      restRotations,
+      poseBasis,
+      muscleMeshes: {},
+      heatmapMeshes: {},
+      skeletonGroup,
+      skeletonParts,
+      skinMeshes,
+      clothingMeshes: [],
+      materials: {
+        skin: new THREE.MeshStandardMaterial(),
+        muscle: new THREE.MeshStandardMaterial(),
+        muscleActive: new THREE.MeshStandardMaterial(),
+        heatmap: new THREE.MeshStandardMaterial(),
+        tendon: new THREE.MeshStandardMaterial(),
+        bone: new THREE.MeshStandardMaterial(),
+        clothing: new THREE.MeshStandardMaterial(),
+        hair: new THREE.MeshStandardMaterial(),
+        eyes: new THREE.MeshStandardMaterial(),
+      },
+    };
+  }
 
   const bodyParts: { [key: string]: THREE.Object3D } = {};
   const restRotations: { [key: string]: THREE.Euler } = {};
@@ -334,10 +483,6 @@ export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
   const humanGroup = new THREE.Group();
   humanGroup.add(model);
 
-  // A loaded character has no separable anatomy: its muscles and skeleton are
-  // painted into one skinned mesh. Those layers are rendered as overlays built
-  // from the asana data instead, which is why these come back empty rather
-  // than throwing — the studio checks for emptiness and adapts.
   return {
     humanGroup,
     bodyParts,

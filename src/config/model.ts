@@ -19,11 +19,15 @@
  *   - exported in a T-pose or A-pose; the loader measures the limbs and
  *     calibrates to the neutral stance the asana data is authored against.
  */
-const DEFAULT_MODEL_PATH = '/models/human.glb';
+export const CANDIDATE_MODEL_PATHS = [
+  '/models/model.glb',
+  '/model/model.glb',
+  '/models/human.glb',
+];
 
 const envUrl = import.meta.env?.VITE_HUMAN_MODEL_URL as string | undefined;
 
-export const HUMAN_MODEL_URL: string = envUrl?.trim() ? envUrl.trim() : DEFAULT_MODEL_PATH;
+export const HUMAN_MODEL_URL: string = envUrl?.trim() ? envUrl.trim() : '/models/model.glb';
 
 /**
  * Target height in world units (metres) that any loaded model is scaled to.
@@ -51,4 +55,21 @@ export async function modelIsAvailable(url: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Finds the first valid model URL among the candidate list or env override.
+ */
+export async function resolveAvailableModelUrl(): Promise<string | null> {
+  if (envUrl?.trim()) {
+    const available = await modelIsAvailable(envUrl.trim());
+    if (available) return envUrl.trim();
+  }
+
+  for (const path of CANDIDATE_MODEL_PATHS) {
+    const available = await modelIsAvailable(path);
+    if (available) return path;
+  }
+
+  return null;
 }

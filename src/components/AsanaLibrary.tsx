@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { ASANAS } from '../data/asanas';
 import type { Asana, MovementType } from '../types';
+import { PragyaLogo } from './PragyaLogo';
 
 interface AsanaLibraryProps {
   onSelectAsana: (asana: Asana) => void;
@@ -110,18 +111,15 @@ export const AsanaLibrary: React.FC<AsanaLibraryProps> = ({
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-[#00381F]/10 dark:border-[#D9AE29]/20">
         
         {/* Left Title & Intro */}
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#944426]/10 dark:bg-[#D9AE29]/15 border border-[#944426]/20 dark:border-[#D9AE29]/30 text-[#944426] dark:text-[#D9AE29] text-xs uppercase tracking-widest font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            Pragya Yog Verse Archive
-          </div>
+        <div className="space-y-3">
+          <PragyaLogo variant="full" size="lg" isDark={isDark} />
           
-          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight text-[#00381F] dark:text-[#F5EFE5]">
-            THE ASANA LIBRARY
+          <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#00381F] dark:text-[#F5EFE5]">
+            PRAGYA YOGA ARCHIVE
           </h1>
           
-          <p className="font-accent italic text-lg sm:text-xl text-[#944426] dark:text-[#D9AE29] max-w-xl">
-            Explore classical postures, anatomical layers, and biomechanical alignments.
+          <p className="font-accent italic text-base sm:text-lg text-[#944426] dark:text-[#D9AE29] max-w-xl">
+            Explore sacred classical postures, interactive 3D kinesiology, muscle activation, and chakra flows.
           </p>
         </div>
 

@@ -8,9 +8,6 @@ import type { Asana, AppView } from './types';
 
 /**
  * Reads `?asana=<slug>` so a posture has its own shareable address.
- *
- * Without it the studio is unreachable except by clicking through the library,
- * which means a pose cannot be linked, bookmarked, or opened directly.
  */
 function asanaFromUrl(): Asana | null {
   if (typeof window === 'undefined') return null;
@@ -22,9 +19,10 @@ function asanaFromUrl(): Asana | null {
 export default function App() {
   const linkedAsana = typeof window !== 'undefined' ? asanaFromUrl() : null;
 
-  const [currentView, setCurrentView] = useState<AppView>(linkedAsana ? 'studio' : 'library');
-  const defaultTreePose = ASANAS.find((a) => a.slug === 'vrikshasana') || ASANAS[0];
-  const [activeAsana, setActiveAsana] = useState<Asana>(linkedAsana ?? defaultTreePose);
+  // Default to Studio view with Warrior II (ASANAS[0]) to match the requested layout
+  const [currentView, setCurrentView] = useState<AppView>('studio');
+  const defaultPose = ASANAS[0]; // Virabhadrasana II (Warrior II)
+  const [activeAsana, setActiveAsana] = useState<Asana>(linkedAsana ?? defaultPose);
   const [isDark, setIsDark] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('pragya_yog_theme') || localStorage.getItem('3d_asana_theme');
@@ -59,8 +57,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Keep the address bar in step, so the browser Back button and a copied link
-  // both behave the way people expect.
   const syncUrl = (slug: string | null) => {
     const url = slug ? `${window.location.pathname}?asana=${slug}` : window.location.pathname;
     window.history.pushState({ asana: slug }, '', url);
@@ -72,8 +68,6 @@ export default function App() {
       if (linked) {
         setActiveAsana(linked);
         setCurrentView('studio');
-      } else {
-        setCurrentView('library');
       }
     };
     window.addEventListener('popstate', onPopState);
@@ -84,56 +78,40 @@ export default function App() {
     setActiveAsana(asana);
     setCurrentView('studio');
     syncUrl(asana.slug);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleSelectOtherAsana = (slug: string) => {
-    const found = ASANAS.find((a) => a.slug === slug || a.id === slug);
-    if (found) {
-      setActiveAsana(found);
-      syncUrl(found.slug);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
   };
 
   return (
-    <div className="min-h-screen bg-[#F5EFE5] dark:bg-[#06140e] text-[#272727] dark:text-[#F5EFE5] font-sans-ui selection:bg-[#944426] selection:text-white transition-colors duration-500">
-      
-      {/* Floating Global Navbar */}
-      <Navbar
-        currentView={currentView}
-        onNavigate={(view) => {
-          setCurrentView(view);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        isDark={isDark}
-        onToggleTheme={() => setIsDark((prev) => !prev)}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        activeAsanaName={currentView === 'studio' ? activeAsana.englishName : undefined}
-      />
+    <div className="h-screen w-screen overflow-hidden bg-[#0c0e12] text-[#F5EFE5] font-sans-ui selection:bg-[#944426] selection:text-white">
+      {/* Studio View (Fullscreen, zero page scrollbar) */}
+      {currentView === 'studio' && (
+        <AsanaStudio
+          asana={activeAsana}
+          onSelectOtherAsana={handleSelectAsana}
+          onBack={() => {
+            setCurrentView('library');
+            syncUrl(null);
+          }}
+          isDark={isDark}
+        />
+      )}
 
-      {/* Main View Router */}
-      <main className="w-full">
-        {currentView === 'library' && (
+      {/* Library View (Fallback / Alternative catalog screen) */}
+      {currentView === 'library' && (
+        <div className="h-screen w-screen overflow-y-auto custom-scrollbar">
+          <Navbar
+            currentView={currentView}
+            onNavigate={(view) => setCurrentView(view)}
+            isDark={isDark}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+            onOpenSearch={() => setIsSearchOpen(true)}
+            activeAsanaName={activeAsana.englishName}
+          />
           <AsanaLibrary
             onSelectAsana={handleSelectAsana}
             isDark={isDark}
           />
-        )}
-
-        {currentView === 'studio' && (
-          <AsanaStudio
-            asana={activeAsana}
-            onSelectOtherAsana={handleSelectOtherAsana}
-            onBack={() => {
-              setCurrentView('library');
-              syncUrl(null);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            isDark={isDark}
-          />
-        )}
-      </main>
+        </div>
+      )}
 
       {/* Global Search Command Modal */}
       <SearchModal

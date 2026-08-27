@@ -1,4 +1,107 @@
-import type { Asana, ChakraInfo } from '../types';
+import type { Asana, ChakraInfo, BoneInfo } from '../types';
+
+export const ALL_BONES: BoneInfo[] = [
+  {
+    id: 'spine-lumbar',
+    name: 'Spine (Lumbar & Thoracic)',
+    latinName: 'Columna vertebralis',
+    category: 'Spine',
+    position3D: [0, 1.15, -0.05],
+    attachTo: 'torso',
+    description: 'Central axial pillar transmitting weight and enabling flexion, extension, and rotation.',
+    alignmentCue: 'Maintain axial elongation; avoid excessive lordotic dumping in lumbar curve.'
+  },
+  {
+    id: 'cervical-spine',
+    name: 'Cervical Spine',
+    latinName: 'Vertebrae cervicales',
+    category: 'Spine',
+    position3D: [0, 1.52, -0.02],
+    attachTo: 'head',
+    description: 'Supports the cranium and directs drishti gaze tracking.',
+    alignmentCue: 'Keep the back of the neck long; avoid pinching suboccipital vertebrae.'
+  },
+  {
+    id: 'pelvis-sacrum',
+    name: 'Pelvis & Sacrum',
+    latinName: 'Pelvis & Os sacrum',
+    category: 'Pelvis',
+    position3D: [0, 0.88, -0.02],
+    attachTo: 'root',
+    description: 'Keystone basin connecting axial spine to appendicular lower limbs.',
+    alignmentCue: 'Level anterior superior iliac spines (ASIS) to stabilize sacroiliac joints.'
+  },
+  {
+    id: 'femur-front',
+    name: 'Femur (Front Leg)',
+    latinName: 'Femur',
+    category: 'Lower Limb',
+    position3D: [0.12, 0.62, 0.05],
+    attachTo: 'leftHip',
+    description: 'Longest, strongest bone in human body bearing weight in dynamic stances.',
+    alignmentCue: 'Align femur directly forward over the second and third toes.'
+  },
+  {
+    id: 'femur-rear',
+    name: 'Femur (Rear Leg)',
+    latinName: 'Femur',
+    category: 'Lower Limb',
+    position3D: [-0.12, 0.62, -0.05],
+    attachTo: 'rightHip',
+    description: 'Provides structural strut anchoring back stance.',
+    alignmentCue: 'Rotate outer rear thigh back and spiral inner thigh posteriorly.'
+  },
+  {
+    id: 'tibia-fibula',
+    name: 'Tibia & Fibula (Shin)',
+    latinName: 'Tibia & Fibula',
+    category: 'Lower Limb',
+    position3D: [0.12, 0.28, 0.02],
+    attachTo: 'leftKnee',
+    description: 'Lower leg bone complex transmitting force to the ankle mortise.',
+    alignmentCue: 'Keep front shin vertical perpendicular to floor at a 90° angle.'
+  },
+  {
+    id: 'patella',
+    name: 'Patella (Kneecap)',
+    latinName: 'Patella',
+    category: 'Lower Limb',
+    position3D: [0.12, 0.46, 0.08],
+    attachTo: 'leftKnee',
+    description: 'Sesamoid bone acting as a fulcrum to increase quadriceps mechanical advantage.',
+    alignmentCue: 'Track patella directly over middle of foot without lateral deviation.'
+  },
+  {
+    id: 'humerus-arms',
+    name: 'Humerus (Arm Bones)',
+    latinName: 'Humerus',
+    category: 'Upper Limb',
+    position3D: [0.35, 1.35, 0.0],
+    attachTo: 'leftShoulder',
+    description: 'Upper arm bone extending the levers of the heart center outward.',
+    alignmentCue: 'Rotate humerus externally while maintaining broad clavicles.'
+  },
+  {
+    id: 'scapulae-clavicle',
+    name: 'Scapulae & Clavicle',
+    latinName: 'Scapula & Clavicula',
+    category: 'Thorax',
+    position3D: [0, 1.38, -0.08],
+    attachTo: 'torso',
+    description: 'Pectoral girdle articulating arm movements across the ribcage.',
+    alignmentCue: 'Draw inferior angles of scapulae down the back toward sacrum.'
+  },
+  {
+    id: 'radius-ulna',
+    name: 'Radius & Ulna',
+    latinName: 'Radius & Ulna',
+    category: 'Upper Limb',
+    position3D: [0.55, 1.35, 0.0],
+    attachTo: 'leftElbow',
+    description: 'Forearm bones enabling pronation, supination, and palm grounding.',
+    alignmentCue: 'Extend energy through radial and ulnar borders to fingertips.'
+  },
+];
 
 export const CHAKRAS_UNIVERSAL = {
   root: {
@@ -223,7 +326,21 @@ export const ASANAS: Asana[] = [
         modification: 'Shorten stance by 3-4 inches if hip flexors or groins feel strained.',
         cameraTarget: [0, 0.7, 0],
         cameraPosition: [0, 1.1, 2.8],
-        highlightedMuscles: ['quadriceps-front', 'hamstrings-back']
+        highlightedMuscles: ['quadriceps-front', 'hamstrings-back'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0.05, 0],
+          headAngle: [0, 0.4, 0],
+          leftArm: [0, 0, 1.4],
+          rightArm: [0, 0, -1.4],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0.1, 0.2, 0.35],
+          rightLeg: [-0.1, -0.15, -0.35],
+          leftShin: [-0.2, 0, 0],
+          rightShin: [-0.05, 0, 0],
+          elevation: -0.05,
+          rotationY: 0.1
+        }
       },
       {
         stepNumber: 2,
@@ -242,7 +359,21 @@ export const ASANAS: Asana[] = [
         modification: 'Place front knee at 110-120 degrees if quad strength or hip mobility is developing.',
         cameraTarget: [0.2, 0.6, 0],
         cameraPosition: [1.2, 0.9, 2.2],
-        highlightedMuscles: ['quadriceps-front', 'gluteus-maximus']
+        highlightedMuscles: ['quadriceps-front', 'gluteus-maximus'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0.1, 0],
+          headAngle: [0, 0.9, 0],
+          leftArm: [0, 0, 1.57],
+          rightArm: [0, 0, -1.57],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0.18, 0.35, 0.55],
+          rightLeg: [-0.12, -0.2, -0.5],
+          leftShin: [-0.95, 0, 0],
+          rightShin: [-0.06, 0, 0],
+          elevation: -0.15,
+          rotationY: 0.22
+        }
       },
       {
         stepNumber: 3,
@@ -261,7 +392,21 @@ export const ASANAS: Asana[] = [
         modification: 'Turn palms upward briefly to reset shoulder sockets, then rotate palms down.',
         cameraTarget: [0, 1.1, 0],
         cameraPosition: [0.8, 1.3, 1.9],
-        highlightedMuscles: ['deltoids', 'erector-spinae']
+        highlightedMuscles: ['deltoids', 'erector-spinae'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0.12, 0],
+          headAngle: [0, 1.35, 0],
+          leftArm: [0, 0, 1.57],
+          rightArm: [0, 0, -1.57],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0.2, 0.45, 0.72],
+          rightLeg: [-0.15, -0.25, -0.62],
+          leftShin: [-1.35, 0, 0],
+          rightShin: [-0.06, 0, 0],
+          elevation: -0.22,
+          rotationY: 0.3
+        }
       },
       {
         stepNumber: 4,
@@ -280,7 +425,21 @@ export const ASANAS: Asana[] = [
         modification: 'Rest hands on hips for a breath if shoulders fatigue.',
         cameraTarget: [0, 0.8, 0],
         cameraPosition: [0, 1.0, 2.6],
-        highlightedMuscles: ['quadriceps-front', 'gluteus-maximus', 'deltoids', 'erector-spinae']
+        highlightedMuscles: ['quadriceps-front', 'gluteus-maximus', 'deltoids', 'erector-spinae'],
+        stepPoseParameters: {
+          torsoAngle: [-0.02, 0.12, 0],
+          headAngle: [0, 1.35, 0],
+          leftArm: [0, 0, 1.57],
+          rightArm: [0, 0, -1.57],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0.22, 0.45, 0.75],
+          rightLeg: [-0.15, -0.25, -0.65],
+          leftShin: [-1.38, 0, 0],
+          rightShin: [-0.06, 0, 0],
+          elevation: -0.23,
+          rotationY: 0.3
+        }
       },
       {
         stepNumber: 5,
@@ -298,7 +457,21 @@ export const ASANAS: Asana[] = [
         modification: 'Use a block or wall for balance support if feeling unsteady.',
         cameraTarget: [0, 0.9, 0],
         cameraPosition: [0, 1.2, 3.0],
-        highlightedMuscles: ['quadriceps-front']
+        highlightedMuscles: ['quadriceps-front'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0.04, 0],
+          headAngle: [0, 0.3, 0],
+          leftArm: [0, 0, 0.5],
+          rightArm: [0, 0, -0.5],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0.05, 0.1, 0.15],
+          rightLeg: [-0.05, -0.1, -0.15],
+          leftShin: [-0.1, 0, 0],
+          rightShin: [0, 0, 0],
+          elevation: -0.04,
+          rotationY: 0.05
+        }
       }
     ],
     breathPattern: {
@@ -484,7 +657,21 @@ export const ASANAS: Asana[] = [
         modification: 'Turn hands slightly outward (5-10 degrees) if wrists feel tight.',
         cameraTarget: [0, 0.4, 0],
         cameraPosition: [1.2, 0.8, 1.8],
-        highlightedMuscles: ['triceps-brachii']
+        highlightedMuscles: ['triceps-brachii'],
+        stepPoseParameters: {
+          torsoAngle: [1.45, 0, 0],
+          headAngle: [0.2, 0, 0],
+          leftArm: [1.5, 0, 0.1],
+          rightArm: [1.5, 0, -0.1],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [1.4, 0, 0.15],
+          rightLeg: [1.4, 0, -0.15],
+          leftShin: [-1.55, 0, 0],
+          rightShin: [-1.55, 0, 0],
+          elevation: -0.45,
+          rotationY: 0.6
+        }
       },
       {
         stepNumber: 2,
@@ -502,7 +689,21 @@ export const ASANAS: Asana[] = [
         modification: 'Bend knees generously and lift heels high off the mat.',
         cameraTarget: [0, 0.6, 0],
         cameraPosition: [1.8, 0.9, 1.9],
-        highlightedMuscles: ['serratus-anterior', 'hamstrings-chain']
+        highlightedMuscles: ['serratus-anterior', 'hamstrings-chain'],
+        stepPoseParameters: {
+          torsoAngle: [1.25, 0, 0],
+          headAngle: [0.35, 0, 0],
+          leftArm: [2.2, 0, 0.15],
+          rightArm: [2.2, 0, -0.15],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [1.35, 0, 0.12],
+          rightLeg: [1.35, 0, -0.12],
+          leftShin: [-0.5, 0, 0],
+          rightShin: [-0.5, 0, 0],
+          elevation: -0.35,
+          rotationY: 0.75
+        }
       },
       {
         stepNumber: 3,
@@ -520,7 +721,21 @@ export const ASANAS: Asana[] = [
         modification: 'Place hands on blocks or a chair for less wrist and hamstring load.',
         cameraTarget: [0, 0.6, 0],
         cameraPosition: [0, 0.8, 2.4],
-        highlightedMuscles: ['serratus-anterior', 'hamstrings-chain', 'gastrocnemius-soleus']
+        highlightedMuscles: ['serratus-anterior', 'hamstrings-chain', 'gastrocnemius-soleus'],
+        stepPoseParameters: {
+          torsoAngle: [1.1, 0, 0],
+          headAngle: [0.4, 0, 0],
+          leftArm: [2.8, 0, 0.2],
+          rightArm: [2.8, 0, -0.2],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [1.4, 0, 0.1],
+          rightLeg: [1.4, 0, -0.1],
+          leftShin: [0.1, 0, 0],
+          rightShin: [0.1, 0, 0],
+          elevation: -0.3,
+          rotationY: 0.8
+        }
       },
       {
         stepNumber: 4,
@@ -535,7 +750,21 @@ export const ASANAS: Asana[] = [
         modification: 'Rest forehead on a block or bolster.',
         cameraTarget: [0, 0.3, 0],
         cameraPosition: [1.0, 0.5, 1.8],
-        highlightedMuscles: []
+        highlightedMuscles: [],
+        stepPoseParameters: {
+          torsoAngle: [1.48, 0, 0],
+          headAngle: [0.25, 0, 0],
+          leftArm: [2.4, 0, 0.1],
+          rightArm: [2.4, 0, -0.1],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [1.55, 0, 0.2],
+          rightLeg: [1.55, 0, -0.2],
+          leftShin: [-2.6, 0, 0],
+          rightShin: [-2.6, 0, 0],
+          elevation: -0.52,
+          rotationY: 0.85
+        }
       }
     ],
     breathPattern: {
@@ -674,7 +903,21 @@ export const ASANAS: Asana[] = [
         modification: 'Separate feet hip-width for increased stability.',
         cameraTarget: [0, 0.2, 0],
         cameraPosition: [0, 0.6, 1.8],
-        highlightedMuscles: ['tibialis-anterior']
+        highlightedMuscles: ['tibialis-anterior'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0, 0],
+          headAngle: [0, 0, 0],
+          leftArm: [0, 0, 0.15],
+          rightArm: [0, 0, -0.15],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0, 0, 0.05],
+          rightLeg: [0, 0, -0.05],
+          leftShin: [0, 0, 0],
+          rightShin: [0, 0, 0],
+          elevation: 0,
+          rotationY: 0
+        }
       },
       {
         stepNumber: 2,
@@ -692,7 +935,21 @@ export const ASANAS: Asana[] = [
         modification: 'Stand against a wall to feel head, upper back, and sacrum touch lightly.',
         cameraTarget: [0, 0.9, 0],
         cameraPosition: [0, 1.1, 2.2],
-        highlightedMuscles: ['quads-adductors', 'core-posture']
+        highlightedMuscles: ['quads-adductors', 'core-posture'],
+        stepPoseParameters: {
+          torsoAngle: [-0.02, 0, 0],
+          headAngle: [0, 0, 0],
+          leftArm: [0, 0, 0.22],
+          rightArm: [0, 0, -0.22],
+          leftForearm: [0.1, 0, 0],
+          rightForearm: [0.1, 0, 0],
+          leftLeg: [0, 0, 0.04],
+          rightLeg: [0, 0, -0.04],
+          leftShin: [0, 0, 0],
+          rightShin: [0, 0, 0],
+          elevation: 0.01,
+          rotationY: 0
+        }
       },
       {
         stepNumber: 3,
@@ -710,7 +967,21 @@ export const ASANAS: Asana[] = [
         modification: 'Close eyes to heighten internal proprioception.',
         cameraTarget: [0, 1.3, 0],
         cameraPosition: [0, 1.4, 1.9],
-        highlightedMuscles: ['core-posture']
+        highlightedMuscles: ['core-posture'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0, 0],
+          headAngle: [-0.02, 0, 0],
+          leftArm: [0, 0, 0.18],
+          rightArm: [0, 0, -0.18],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0, 0, 0.04],
+          rightLeg: [0, 0, -0.04],
+          leftShin: [0, 0, 0],
+          rightShin: [0, 0, 0],
+          elevation: 0.02,
+          rotationY: 0
+        }
       }
     ],
     breathPattern: {
@@ -851,7 +1122,21 @@ export const ASANAS: Asana[] = [
         modification: 'Keep fingertips lightly touching a wall for reassurance.',
         cameraTarget: [0, 0.5, 0],
         cameraPosition: [0, 0.9, 2.2],
-        highlightedMuscles: ['peroneals-ankle']
+        highlightedMuscles: ['peroneals-ankle'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0, -0.03],
+          headAngle: [0, 0, 0],
+          leftArm: [0, 0, 0.25],
+          rightArm: [0, 0, -0.25],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0, 0, 0.02],
+          rightLeg: [0.15, 0.3, -0.2],
+          leftShin: [0, 0, 0],
+          rightShin: [-0.6, 0, 0],
+          elevation: 0,
+          rotationY: 0.05
+        }
       },
       {
         stepNumber: 2,
@@ -869,7 +1154,21 @@ export const ASANAS: Asana[] = [
         modification: 'Place toes on the floor like a kickstand with heel resting on ankle.',
         cameraTarget: [0, 0.7, 0],
         cameraPosition: [0.8, 1.0, 2.0],
-        highlightedMuscles: ['hip-abductors-standing', 'hip-rotators-lifted']
+        highlightedMuscles: ['hip-abductors-standing', 'hip-rotators-lifted'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0, 0],
+          headAngle: [0, 0, 0],
+          leftArm: [-0.3, 0, 0.6],
+          rightArm: [-0.3, 0, -0.6],
+          leftForearm: [1.1, 0, -0.5],
+          rightForearm: [1.1, 0, 0.5],
+          leftLeg: [0, 0, 0],
+          rightLeg: [0.35, 1.2, -0.8],
+          leftShin: [0, 0, 0],
+          rightShin: [-2.2, 0, 0],
+          elevation: 0,
+          rotationY: 0.1
+        }
       },
       {
         stepNumber: 3,
@@ -887,7 +1186,21 @@ export const ASANAS: Asana[] = [
         modification: 'Keep hands at heart center if shoulder mobility is restricted.',
         cameraTarget: [0, 1.1, 0],
         cameraPosition: [0, 1.2, 2.2],
-        highlightedMuscles: ['peroneals-ankle', 'hip-abductors-standing']
+        highlightedMuscles: ['peroneals-ankle', 'hip-abductors-standing'],
+        stepPoseParameters: {
+          torsoAngle: [0, 0, 0],
+          headAngle: [-0.05, 0, 0],
+          leftArm: [2.8, 0, 0.3],
+          rightArm: [2.8, 0, -0.3],
+          leftForearm: [0.15, 0, -0.2],
+          rightForearm: [0.15, 0, 0.2],
+          leftLeg: [0, 0, 0],
+          rightLeg: [0.35, 1.2, -0.8],
+          leftShin: [0, 0, 0],
+          rightShin: [-2.2, 0, 0],
+          elevation: 0.02,
+          rotationY: 0.1
+        }
       }
     ],
     breathPattern: {
@@ -1033,7 +1346,21 @@ export const ASANAS: Asana[] = [
         modification: 'Use a yoga strap looped around ankles if hands do not reach comfortably.',
         cameraTarget: [0, 0.2, 0],
         cameraPosition: [1.2, 0.5, 1.8],
-        highlightedMuscles: ['erector-spinae-bow']
+        highlightedMuscles: ['erector-spinae-bow'],
+        stepPoseParameters: {
+          torsoAngle: [-0.15, 0, 0],
+          headAngle: [-0.1, 0, 0],
+          leftArm: [-1.2, 0, 0.3],
+          rightArm: [-1.2, 0, -0.3],
+          leftForearm: [-0.2, 0, 0],
+          rightForearm: [-0.2, 0, 0],
+          leftLeg: [-0.2, 0, 0.2],
+          rightLeg: [-0.2, 0, -0.2],
+          leftShin: [1.8, 0, 0],
+          rightShin: [1.8, 0, 0],
+          elevation: -0.42,
+          rotationY: 1.2
+        }
       },
       {
         stepNumber: 2,
@@ -1052,7 +1379,21 @@ export const ASANAS: Asana[] = [
         modification: 'Lift only chest while keeping thighs on the ground for a gentler backbend.',
         cameraTarget: [0, 0.35, 0],
         cameraPosition: [1.8, 0.7, 1.5],
-        highlightedMuscles: ['erector-spinae-bow', 'gluteus-hamstrings-bow', 'rhomboids-delts']
+        highlightedMuscles: ['erector-spinae-bow', 'gluteus-hamstrings-bow', 'rhomboids-delts'],
+        stepPoseParameters: {
+          torsoAngle: [-0.45, 0, 0],
+          headAngle: [-0.35, 0, 0],
+          leftArm: [-1.6, 0, 0.35],
+          rightArm: [-1.6, 0, -0.35],
+          leftForearm: [-0.3, 0, 0],
+          rightForearm: [-0.3, 0, 0],
+          leftLeg: [-0.45, 0, 0.25],
+          rightLeg: [-0.45, 0, -0.25],
+          leftShin: [2.1, 0, 0],
+          rightShin: [2.1, 0, 0],
+          elevation: -0.41,
+          rotationY: 1.35
+        }
       },
       {
         stepNumber: 3,
@@ -1070,7 +1411,21 @@ export const ASANAS: Asana[] = [
         modification: 'Lower down slightly to allow breath to flow smoothly.',
         cameraTarget: [0, 0.4, 0],
         cameraPosition: [0, 0.8, 2.2],
-        highlightedMuscles: ['erector-spinae-bow', 'gluteus-hamstrings-bow', 'psoas-rectus-stretch']
+        highlightedMuscles: ['erector-spinae-bow', 'gluteus-hamstrings-bow', 'psoas-rectus-stretch'],
+        stepPoseParameters: {
+          torsoAngle: [-0.6, 0, 0],
+          headAngle: [-0.5, 0, 0],
+          leftArm: [-1.8, 0, 0.4],
+          rightArm: [-1.8, 0, -0.4],
+          leftForearm: [-0.4, 0, 0],
+          rightForearm: [-0.4, 0, 0],
+          leftLeg: [-0.6, 0, 0.3],
+          rightLeg: [-0.6, 0, -0.3],
+          leftShin: [2.3, 0, 0],
+          rightShin: [2.3, 0, 0],
+          elevation: -0.4,
+          rotationY: 1.4
+        }
       },
       {
         stepNumber: 4,
@@ -1087,7 +1442,21 @@ export const ASANAS: Asana[] = [
         modification: 'Press back into Child’s Pose (Balasana) as a gentle counter-posture.',
         cameraTarget: [0, 0.1, 0],
         cameraPosition: [0, 0.6, 2.0],
-        highlightedMuscles: []
+        highlightedMuscles: [],
+        stepPoseParameters: {
+          torsoAngle: [-0.05, 0, 0],
+          headAngle: [0, 0, 0.4],
+          leftArm: [-0.3, 0, 0.2],
+          rightArm: [-0.3, 0, -0.2],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [0, 0, 0.15],
+          rightLeg: [0, 0, -0.15],
+          leftShin: [0.1, 0, 0],
+          rightShin: [0.1, 0, 0],
+          elevation: -0.48,
+          rotationY: 1.45
+        }
       }
     ],
     breathPattern: {
@@ -1214,7 +1583,21 @@ export const ASANAS: Asana[] = [
         modification: 'Place a bolster or pillow between heels and sitting bones.',
         cameraTarget: [0, 0.15, 0],
         cameraPosition: [1.2, 0.5, 1.6],
-        highlightedMuscles: ['hip-flexors-glutes-release']
+        highlightedMuscles: ['hip-flexors-glutes-release'],
+        stepPoseParameters: {
+          torsoAngle: [0.05, 0, 0],
+          headAngle: [0, 0, 0],
+          leftArm: [0, 0, 0.15],
+          rightArm: [0, 0, -0.15],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [1.4, 0, 0.2],
+          rightLeg: [1.4, 0, -0.2],
+          leftShin: [-2.8, 0, 0],
+          rightShin: [-2.8, 0, 0],
+          elevation: -0.38,
+          rotationY: 0.6
+        }
       },
       {
         stepNumber: 2,
@@ -1232,7 +1615,21 @@ export const ASANAS: Asana[] = [
         modification: 'Rest forehead on a yoga block or stacked fists.',
         cameraTarget: [0, 0.1, 0],
         cameraPosition: [0, 0.5, 2.0],
-        highlightedMuscles: ['lumbar-fascia']
+        highlightedMuscles: ['lumbar-fascia'],
+        stepPoseParameters: {
+          torsoAngle: [1.5, 0, 0],
+          headAngle: [0.3, 0, 0],
+          leftArm: [2.5, 0, 0.1],
+          rightArm: [2.5, 0, -0.1],
+          leftForearm: [0, 0, 0],
+          rightForearm: [0, 0, 0],
+          leftLeg: [1.6, 0, 0.25],
+          rightLeg: [1.6, 0, -0.25],
+          leftShin: [-2.9, 0, 0],
+          rightShin: [-2.9, 0, 0],
+          elevation: -0.55,
+          rotationY: 0.9
+        }
       }
     ],
     breathPattern: {

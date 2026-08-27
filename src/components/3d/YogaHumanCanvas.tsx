@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import type { Asana, VisualLayerType } from '../../types';
+import type { Asana, VisualLayerType, MuscleActivation, BoneInfo } from '../../types';
 import { createDetailedHumanModel, HumanRigResult } from './detailedHumanModel';
-import { HUMAN_MODEL_URL, modelIsAvailable } from '../../config/model';
+import { HUMAN_MODEL_URL, modelIsAvailable, resolveAvailableModelUrl } from '../../config/model';
 import { createDataLayers, type DataLayers } from './dataLayers';
+import { Anatomy3DOverlay, ScreenPin } from './Anatomy3DOverlay';
+import { ALL_BONES } from '../../data/asanas';
+import type { StudioViewMode } from '../studio/TopModeSwitcher';
 
 export interface YogaHumanCanvasProps {
   asana?: Asana;
@@ -19,13 +22,18 @@ export interface YogaHumanCanvasProps {
    * over viewMode / showAnatomyOverlay / showSkeleton.
    */
   activeLayer?: VisualLayerType;
-  viewMode?: 'camera' | 'bone' | 'muscle';
+  viewMode?: StudioViewMode;
   selectedMuscleId?: string | null;
   /** Highlights one chakra in the spinal column when the chakra layer is on. */
   selectedChakraId?: string | null;
-  cameraViewPreset?: '360' | 'orbit' | 'front' | 'side' | 'back' | 'top';
+  selectedBoneId?: string | null;
+  selectedPin?: ScreenPin | null;
+  onSelectPin?: (pin: ScreenPin | null) => void;
+  cameraViewPreset?: '360' | 'orbit' | 'front' | 'side' | 'back' | 'top' | 'upper' | 'lower' | 'skeleton' | 'muscle';
   zoomLevel?: number;
   isDark?: boolean;
+  isPanning?: boolean;
+  isAutoRotating?: boolean;
   className?: string;
   onCameraMove?: () => void;
 }
@@ -151,10 +159,16 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
   viewMode = 'camera',
   selectedMuscleId,
   selectedChakraId,
-  cameraViewPreset = 'orbit',
+  selectedBoneId,
+  selectedPin,
+  onSelectPin,
+  cameraViewPreset = '360',
   zoomLevel = 1.0,
   isDark = true,
+  isPanning = false,
+  isAutoRotating = false,
   className = '',
+  onCameraMove,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   // Always holds the latest rebuild fn, so the async GLB swap inside the
@@ -202,6 +216,28 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     breathPhaseIndex: number;
     breathElapsed: number;
   } | null>(null);
+
+  const propsRef = useRef({
+    asana,
+    currentStepIndex,
+    viewMode,
+    showAnatomyOverlay,
+    showSkeleton,
+    activeLayer,
+    isAutoRotating,
+  });
+
+  useEffect(() => {
+    propsRef.current = {
+      asana,
+      currentStepIndex,
+      viewMode,
+      showAnatomyOverlay,
+      showSkeleton,
+      activeLayer,
+      isAutoRotating,
+    };
+  }, [asana, currentStepIndex, viewMode, showAnatomyOverlay, showSkeleton, activeLayer, isAutoRotating]);
 
   // Initialize Three.js
   useEffect(() => {
@@ -447,7 +483,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     platformTrim.position.set(0, platformHeight, 0);
     scene.add(platformTrim);
 
-    // Front Face Engraved Branding: ASANA 3D PLATFORM
+    // Front Face Engraved Branding: PRAGYA 3d verse
     function createBrandingTexture(): THREE.CanvasTexture {
       const canvas = document.createElement('canvas');
       canvas.width = 512;
@@ -456,27 +492,28 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       if (ctx) {
         ctx.clearRect(0, 0, 512, 128);
 
-        // Golden geometric folded logo
+        // Golden geometric folded triangle logo
         ctx.strokeStyle = '#d4af37';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 3.5;
         ctx.beginPath();
-        ctx.moveTo(130, 85);
-        ctx.lineTo(155, 35);
-        ctx.lineTo(180, 85);
-        ctx.lineTo(142, 60);
-        ctx.lineTo(168, 60);
+        ctx.moveTo(80, 85);
+        ctx.lineTo(105, 35);
+        ctx.lineTo(130, 85);
+        ctx.lineTo(92, 60);
+        ctx.lineTo(118, 60);
         ctx.stroke();
 
-        // Text
+        // Text: PRAGYA in capital
         ctx.fillStyle = '#d4af37';
-        ctx.font = 'bold 34px "Outfit", "Inter", sans-serif';
-        ctx.letterSpacing = '4px';
-        ctx.fillText('ASANA', 200, 62);
+        ctx.font = '900 32px "Cinzel", "Outfit", sans-serif';
+        ctx.letterSpacing = '3px';
+        ctx.fillText('PRAGYA', 150, 58);
 
+        // Subtitle: 3d verse in small
         ctx.fillStyle = '#e5c158';
-        ctx.font = '500 18px "Inter", sans-serif';
-        ctx.letterSpacing = '6px';
-        ctx.fillText('3D PLATFORM', 200, 90);
+        ctx.font = 'bold 15px "Plus Jakarta Sans", monospace';
+        ctx.letterSpacing = '4px';
+        ctx.fillText('3d verse', 150, 86);
       }
       return new THREE.CanvasTexture(canvas);
     }
@@ -648,17 +685,11 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     let cancelled = false;
 
     {
-      const modelUrl = HUMAN_MODEL_URL;
-
-      // Probe first, so a project with no model never downloads the loader
-      // chunk and never sees a spurious parse error from the SPA fallback.
-      modelIsAvailable(modelUrl)
-        .then((available) => {
-          if (cancelled) return null;
-          if (!available) {
+      resolveAvailableModelUrl()
+        .then((modelUrl) => {
+          if (cancelled || !modelUrl) {
             console.info(
-              `[YogaHumanCanvas] No model at ${modelUrl} — using the procedural figure. ` +
-                `Drop a rigged humanoid .glb there to replace it.`
+              `[YogaHumanCanvas] No 3D model found — using the high-detail procedural figure.`
             );
             return null;
           }
@@ -684,11 +715,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
           state.scene.add(loaded.humanGroup);
 
-          // Snap the new body straight into the pose already selected, rather
-          // than letting the render loop ease it there from the neutral stance.
-          // The swap lands a second or two after the studio opened, so easing
-          // reads as the model briefly standing to attention before assuming
-          // the asana.
+          // Snap the new body straight into the pose already selected
           Object.entries(state.targetJoints).forEach(([partName, targetEuler]) => {
             const part = state.bodyParts[partName];
             if (!part) return;
@@ -708,13 +735,10 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
           // Markers were parented to the old rig's bones, so rebuild them
           // against the new skeleton.
           rebuildLayersRef.current();
-
-         // targetJoints survives the swap, so the animate loop eases the new
-          // body into the pose already selected without re-running anything.
         })
         .catch((err) => {
           console.warn(
-            `[YogaHumanCanvas] Keeping the procedural model — ${HUMAN_MODEL_URL} did not load.`,
+            `[YogaHumanCanvas] Keeping the procedural model — GLB model did not load.`,
             err
           );
         });
@@ -794,6 +818,11 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       state.dataLayers?.update(elapsed);
       advanceBreath(state, delta);
 
+      // Auto-rotation when active
+      if (propsRef.current.isAutoRotating) {
+        state.targetRotation.y += 0.003;
+      }
+
       state.renderer.render(state.scene, state.camera);
     };
 
@@ -807,34 +836,28 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     };
   }, []);
 
+  const [screenPins, setScreenPins] = useState<ScreenPin[]>([]);
+  const [internalSelectedPin, setInternalSelectedPin] = useState<ScreenPin | null>(null);
+
   // Update Visual Layers (Anatomy Heatmap, Skeleton, Alignment Grid, Props, ViewMode)
   useEffect(() => {
     const state = threeRef.current;
     if (!state) return;
 
-    // Two independent controls, deliberately not conflated:
-    //
-    //   the four booleans -> the rig's own layers. They map one-to-one onto the
-    //     VISUAL LAYERS switches, so a toggle does exactly what it says.
-    //   viewMode          -> the Camera/Bone/Muscle focus buttons, which force
-    //     a layer on and fade the skin to make it readable.
-    //   activeLayer       -> the data-driven overlays (chakras, muscle markers,
-    //     breath), handled elsewhere. It only softens the skin here so those
-    //     markers stay visible through the body.
     const boneFocus = viewMode === 'bone';
     const muscleFocus = viewMode === 'muscle';
 
-    // 1. Muscle heatmaps (procedural rig only — a loaded character has none)
+    // 1. Muscle heatmaps (procedural rig only — rendered directly on top of the solid body)
     Object.values(state.heatmapMeshes).forEach((mesh) => {
       mesh.visible = showAnatomyOverlay || muscleFocus;
     });
 
-    // 2. 3D skeleton. The procedural rig keeps its bones under one group; a
-    //    loaded GLB has them parented to individual bones so they follow the
-    //    pose, and those are toggled individually.
+    // 2. 3D skeleton (luminous ivory bones rendered on the solid figure)
     const skeletonOn = showSkeleton || boneFocus;
     state.skeletonGroup.visible = skeletonOn;
-    for (const part of state.skeletonParts) part.visible = skeletonOn;
+    for (const part of state.skeletonParts) {
+      part.visible = skeletonOn;
+    }
 
     // 3. Alignment grid & laser axes
     state.alignmentGridGroup.visible = showAlignmentGrid;
@@ -844,78 +867,120 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     // 4. Props
     state.propBlockMesh.visible = showProps;
 
-    // 5. Fade the body by however much has to be seen through it.
-    let skinOpacity = 1;
-    if (boneFocus) skinOpacity = 0.22;
-    else if (muscleFocus) skinOpacity = 0.55;
-    else if (showSkeleton && showAnatomyOverlay) skinOpacity = 0.72;
-    else if (showSkeleton) skinOpacity = 0.45;
-    else if (activeLayer === 'chakras' || activeLayer === 'muscles') skinOpacity = 0.82;
-
+    // 5. Model remains solid and fully opaque at all times (matching reference image style)
     state.skinMeshes.forEach((mesh) => {
       const mat = mesh.material as THREE.MeshStandardMaterial;
-      mat.opacity = skinOpacity;
-      mat.transparent = skinOpacity < 1;
+      mat.opacity = 1.0;
+      mat.transparent = false;
+    });
+
+    state.clothingMeshes.forEach((mesh) => {
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      mat.opacity = 1.0;
+      mat.transparent = false;
     });
   }, [showAnatomyOverlay, showSkeleton, showAlignmentGrid, showProps, viewMode, activeLayer]);
 
-  // Drive the rig from the selected asana's authored pose parameters.
-  //
-  // Asana.poseParameters describes the finished posture as joint rotations, in
-  // the same convention the rig uses. The mapping from data field to rig joint:
-  //
-  //   torsoAngle / headAngle       -> torso / head
-  //   leftArm / rightArm           -> {left,right}Shoulder
-  //   leftForearm / rightForearm   -> {left,right}Elbow
-  //   leftLeg / rightLeg           -> {left,right}Hip
-  //   leftShin / rightShin         -> {left,right}Knee
-  //
-  // The rig's rest state (every joint at zero) is Tadasana, so scaling the
-  // authored angles by an entry factor eases the model from standing into the
-  // posture across the opening steps, then holds it for the remaining ones.
-  const applyAsanaPose = useCallback((target: Asana | undefined, stepIdx: number) => {
-    const state = threeRef.current;
-    if (!state) return;
+  // Drive the rig from the selected asana's authored pose parameters with continuous scrubber support.
+  const applyAsanaPose = useCallback(
+    (target: Asana | undefined, stepIdx: number, progress?: number) => {
+      const state = threeRef.current;
+      if (!state) return;
 
-    const pose = target?.poseParameters;
-    if (!pose) {
-      state.targetJoints = {};
-      state.targetElevation = 0;
-      state.targetPoseRotationY = 0;
-      return;
-    }
+      const steps = target?.steps;
+      const totalSteps = steps?.length || 5;
 
-    // 0 while still standing, 1 once the posture is fully established.
-    const entry = ENTRY_STEPS > 0 ? Math.min(1, Math.max(0, stepIdx / ENTRY_STEPS)) : 1;
-    const eased = (angles: [number, number, number]) =>
-      new THREE.Euler(angles[0] * entry, angles[1] * entry, angles[2] * entry);
+      let effectiveStep = stepIdx;
+      let fraction = 0;
+      if (typeof progress === 'number') {
+        const continuousIndex = (Math.max(0, Math.min(100, progress)) / 100) * (totalSteps - 1);
+        effectiveStep = Math.floor(continuousIndex);
+        fraction = continuousIndex - effectiveStep;
+      } else {
+        effectiveStep = Math.max(0, Math.min(totalSteps - 1, stepIdx));
+        fraction = 0;
+      }
 
-    state.targetJoints = {
-      torso: eased(pose.torsoAngle),
-      head: eased(pose.headAngle),
-      leftShoulder: eased(pose.leftArm),
-      rightShoulder: eased(pose.rightArm),
-      leftElbow: eased(pose.leftForearm),
-      rightElbow: eased(pose.rightForearm),
-      leftHip: eased(pose.leftLeg),
-      rightHip: eased(pose.rightLeg),
-      leftKnee: eased(pose.leftShin),
-      rightKnee: eased(pose.rightShin),
-    };
+      const currentStepObj = steps?.[effectiveStep];
+      const nextStepObj = steps?.[Math.min(totalSteps - 1, effectiveStep + 1)];
 
-    state.targetElevation = pose.elevation * entry;
-    state.targetPoseRotationY = pose.rotationY * entry;
-  }, []);
+      const lerpAngle = (a: [number, number, number], b: [number, number, number], f: number) =>
+        new THREE.Euler(
+          a[0] * (1 - f) + b[0] * f,
+          a[1] * (1 - f) + b[1] * f,
+          a[2] * (1 - f) + b[2] * f
+        );
+
+      if (currentStepObj?.stepPoseParameters && nextStepObj?.stepPoseParameters) {
+        const p1 = currentStepObj.stepPoseParameters;
+        const p2 = nextStepObj.stepPoseParameters;
+
+        state.targetJoints = {
+          torso: lerpAngle(p1.torsoAngle, p2.torsoAngle, fraction),
+          head: lerpAngle(p1.headAngle, p2.headAngle, fraction),
+          leftShoulder: lerpAngle(p1.leftArm, p2.leftArm, fraction),
+          rightShoulder: lerpAngle(p1.rightArm, p2.rightArm, fraction),
+          leftElbow: lerpAngle(p1.leftForearm, p2.leftForearm, fraction),
+          rightElbow: lerpAngle(p1.rightForearm, p2.rightForearm, fraction),
+          leftHip: lerpAngle(p1.leftLeg, p2.leftLeg, fraction),
+          rightHip: lerpAngle(p1.rightLeg, p2.rightLeg, fraction),
+          leftKnee: lerpAngle(p1.leftShin, p2.leftShin, fraction),
+          rightKnee: lerpAngle(p1.rightShin, p2.rightShin, fraction),
+        };
+
+        state.targetElevation = p1.elevation * (1 - fraction) + p2.elevation * fraction;
+        state.targetPoseRotationY = p1.rotationY * (1 - fraction) + p2.rotationY * fraction;
+        return;
+      }
+
+      const pose = target?.poseParameters;
+      if (!pose) {
+        state.targetJoints = {};
+        state.targetElevation = 0;
+        state.targetPoseRotationY = 0;
+        return;
+      }
+
+      // Smooth step-by-step interpolation across steps 0 to totalSteps - 1
+      const normalizedT = totalSteps > 1
+        ? (effectiveStep + fraction) / (totalSteps - 1)
+        : 1;
+
+      // Easing curve from setup (0) -> unfolding (0.35) -> deepening (0.75) -> full expression (1.0)
+      const easeProgress = Math.sin((normalizedT * Math.PI) / 2);
+
+      const easeAngle = (angles: [number, number, number]) =>
+        new THREE.Euler(
+          angles[0] * easeProgress,
+          angles[1] * easeProgress,
+          angles[2] * easeProgress
+        );
+
+      state.targetJoints = {
+        torso: easeAngle(pose.torsoAngle),
+        head: easeAngle(pose.headAngle),
+        leftShoulder: easeAngle(pose.leftArm),
+        rightShoulder: easeAngle(pose.rightArm),
+        leftElbow: easeAngle(pose.leftForearm),
+        rightElbow: easeAngle(pose.rightForearm),
+        leftHip: easeAngle(pose.leftLeg),
+        rightHip: easeAngle(pose.rightLeg),
+        leftKnee: easeAngle(pose.leftShin),
+        rightKnee: easeAngle(pose.rightShin),
+      };
+
+      state.targetElevation = pose.elevation * easeProgress;
+      state.targetPoseRotationY = pose.rotationY * easeProgress;
+    },
+    []
+  );
 
   useEffect(() => {
-    applyAsanaPose(asana, currentStepIndex);
-  }, [asana, currentStepIndex, applyAsanaPose]);
+    applyAsanaPose(asana, currentStepIndex ?? 0, scrubberProgress);
+  }, [asana, currentStepIndex, scrubberProgress, applyAsanaPose]);
 
   // --- Data-driven overlay layers ----------------------------------------
 
-  // Markers are parented to specific bones, so they must be rebuilt whenever
-  // the asana changes (different muscles) or the rig is swapped (different
-  // bones). The GLB loader reaches this through rebuildLayersRef.
   const rebuildDataLayers = useCallback(() => {
     const state = threeRef.current;
     if (!state) return;
@@ -942,28 +1007,18 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     };
   }, [rebuildDataLayers]);
 
-  // Declared after the rebuild effect so it runs second and re-applies the
-  // current selection to freshly built markers.
   useEffect(() => {
     const layers = threeRef.current?.dataLayers;
     if (!layers) return;
 
     layers.setChakrasVisible(activeLayer === 'chakras');
-
-    // The data-driven muscle zones are the only anatomy a loaded character can
-    // show — its body is one skinned mesh with no separable muscle geometry —
-    // so the Anatomy Overlay switch and the Muscle focus button drive them too,
-    // not just the Muscles layer. On the procedural rig they sit alongside its
-    // own heatmap meshes.
-    layers.setMusclesVisible(
-      activeLayer === 'muscles' || showAnatomyOverlay || viewMode === 'muscle'
-    );
+    const isMuscleMode = activeLayer === 'muscles' || showAnatomyOverlay || viewMode === 'muscle';
+    layers.setMusclesVisible(isMuscleMode);
     layers.setSelectedChakra(selectedChakraId);
     layers.setSelectedMuscle(selectedMuscleId);
   }, [activeLayer, selectedChakraId, selectedMuscleId, asana, showAnatomyOverlay, viewMode]);
 
-  // Breath runs only while its layer is showing, and restarts on each change so
-  // it always begins on the inhale rather than mid-cycle.
+  // Breath cycle
   useEffect(() => {
     const state = threeRef.current;
     if (!state) return;
@@ -982,7 +1037,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     const state = threeRef.current;
     if (!state) return;
 
-    const baseDistance = 3.4 / Math.max(0.4, Math.min(2.5, zoomLevel));
+    const baseDistance = 3.4 / Math.max(0.4, Math.min(2.5, zoomLevel ?? 1));
 
     if (cameraViewPreset === 'front') {
       state.targetCameraPos.set(0, 1.1, baseDistance);
@@ -996,8 +1051,17 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     } else if (cameraViewPreset === 'top') {
       state.targetCameraPos.set(0.05, baseDistance * 1.2, 0.1);
       state.targetRotation = { x: 0, y: 0 };
+    } else if (cameraViewPreset === 'upper') {
+      state.targetCameraPos.set(0.2, 1.4, baseDistance * 0.7);
+      state.targetRotation = { x: 0, y: 0.1 };
+    } else if (cameraViewPreset === 'lower') {
+      state.targetCameraPos.set(0.2, 0.6, baseDistance * 0.75);
+      state.targetRotation = { x: 0, y: 0.1 };
+    } else if (cameraViewPreset === 'skeleton' || cameraViewPreset === 'muscle') {
+      state.targetCameraPos.set(0.4, 1.15, baseDistance * 0.85);
+      state.targetRotation = { x: 0, y: 0.15 };
     } else {
-      // 360 / Default angled view (matches reference image)
+      // 360 / Default angled view
       state.targetCameraPos.set(0.65, 1.25, baseDistance);
     }
   }, [cameraViewPreset, zoomLevel]);
@@ -1017,8 +1081,13 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     const deltaX = e.clientX - state.previousMousePosition.x;
     const deltaY = e.clientY - state.previousMousePosition.y;
 
-    state.targetRotation.y += deltaX * 0.008;
-    state.targetRotation.x = Math.max(-0.45, Math.min(0.45, state.targetRotation.x + deltaY * 0.006));
+    if (isPanning) {
+      state.humanGroup.position.x += deltaX * 0.003;
+      state.humanGroup.position.y -= deltaY * 0.003;
+    } else {
+      state.targetRotation.y += deltaX * 0.008;
+      state.targetRotation.x = Math.max(-0.45, Math.min(0.45, state.targetRotation.x + deltaY * 0.006));
+    }
 
     state.previousMousePosition = { x: e.clientX, y: e.clientY };
   };
@@ -1028,6 +1097,14 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     if (state) state.isDragging = false;
   };
 
+  const effectiveSelectedPin = selectedPin !== undefined ? selectedPin : internalSelectedPin;
+  const handlePinSelect = (pin: ScreenPin | null) => {
+    setInternalSelectedPin(pin);
+    if (onSelectPin) {
+      onSelectPin(pin);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -1035,7 +1112,7 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      className={`relative w-full h-full cursor-grab active:cursor-grabbing select-none overflow-hidden ${className}`}
+      className={`relative w-full h-full cursor-grab active:cursor-grabbing select-none overflow-hidden ${className || ''}`}
     >
       <canvas ref={canvasRef} className="w-full h-full block" />
     </div>

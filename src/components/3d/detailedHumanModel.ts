@@ -52,6 +52,7 @@ export function createDetailedHumanModel(): HumanRigResult {
   const skinMeshes: THREE.Mesh[] = [];
   const clothingMeshes: THREE.Mesh[] = [];
   const skeletonGroup = new THREE.Group();
+  const skeletonParts: THREE.Object3D[] = [];
   humanGroup.add(skeletonGroup);
 
   // 1. Procedural Muscle, Fabric & Heatmap Textures
@@ -174,40 +175,44 @@ export function createDetailedHumanModel(): HumanRigResult {
     emissiveIntensity: 0.3,
   });
 
-  const heatmapMat = new THREE.MeshStandardMaterial({
-    color: 0xff6b00,
+  const muscleActiveMat = new THREE.MeshStandardMaterial({
+    color: 0xff3b00,
     map: heatmapTexture,
     roughness: 0.25,
-    metalness: 0.3,
+    metalness: 0.15,
     emissive: 0xff3700,
-    emissiveIntensity: 1.4,
-    transparent: true,
-    opacity: 0.92,
-  });
-
-  const muscleActiveMat = new THREE.MeshStandardMaterial({
-    color: 0xffa500,
-    roughness: 0.2,
-    metalness: 0.4,
-    emissive: 0xff6600,
     emissiveIntensity: 1.2,
   });
 
   const tendonMat = new THREE.MeshStandardMaterial({
     color: 0xf1f5f9,
-    roughness: 0.22,
-    metalness: 0.15,
+    roughness: 0.4,
+    metalness: 0.05,
+    bumpScale: 0.01,
   });
 
-  // Skeletal ivory bone material with smooth translucency
+  // Skeletal ivory bone material with luminous glow for X-ray visibility on solid body
   const boneMat = new THREE.MeshStandardMaterial({
-    color: 0xf3f4f6,
-    roughness: 0.25,
+    color: 0xf8fafc,
+    roughness: 0.15,
     metalness: 0.1,
     transparent: true,
-    opacity: 0.92,
-    emissive: 0xe5e7eb,
-    emissiveIntensity: 0.2,
+    opacity: 0.95,
+    emissive: 0xffffff,
+    emissiveIntensity: 0.85,
+    depthTest: true,
+  });
+
+  const heatmapMat = new THREE.MeshStandardMaterial({
+    color: 0xff4500,
+    map: heatmapTexture,
+    roughness: 0.25,
+    metalness: 0.2,
+    emissive: 0xff3700,
+    emissiveIntensity: 1.8,
+    transparent: true,
+    opacity: 0.95,
+    depthTest: true,
   });
 
   // Fabric and hair are dielectric — any metalness makes them look wet.
@@ -335,7 +340,7 @@ export function createDetailedHumanModel(): HumanRigResult {
   pelvicBoneGroup.add(pubicArch);
 
   pelvis.add(pelvicBoneGroup);
-  skeletonGroup.add(pelvicBoneGroup);
+  skeletonParts.push(pelvicBoneGroup);
 
   // --- B. TORSO & SPINE ---
   const torso = new THREE.Group();
@@ -371,7 +376,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     spineGroup.add(vert);
   }
   torso.add(spineGroup);
-  skeletonGroup.add(spineGroup);
+  skeletonParts.push(spineGroup);
 
   // Sculpted 6-Pack & Oblique Muscle Plates
   for (let row = 0; row < 3; row++) {
@@ -443,7 +448,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     ribcageGroup.add(ribTorus);
   }
   chest.add(ribcageGroup);
-  skeletonGroup.add(ribcageGroup);
+  skeletonParts.push(ribcageGroup);
 
   // Clavicle Collarbones (Left & Right)
   for (let side = -1; side <= 1; side += 2) {
@@ -455,7 +460,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     clavicle.rotation.z = -side * 0.18;
     clavicle.rotation.y = side * 0.25;
     chest.add(clavicle);
-    skeletonGroup.add(clavicle);
+    skeletonParts.push(clavicle);
   }
 
   // --- D. NECK & HEAD ---
@@ -474,7 +479,7 @@ export function createDetailedHumanModel(): HumanRigResult {
   const cervicalSpine = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.11, 10), boneMat);
   cervicalSpine.position.set(0, 0.06, -0.02);
   neck.add(cervicalSpine);
-  skeletonGroup.add(cervicalSpine);
+  skeletonParts.push(cervicalSpine);
 
   const head = new THREE.Group();
   head.position.set(0, 0.12, 0);
@@ -552,7 +557,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     // Shoulder Joint Bone Sphere
     const shoulderBone = new THREE.Mesh(new THREE.SphereGeometry(0.038, 12, 12), boneMat);
     shoulder.add(shoulderBone);
-    skeletonGroup.add(shoulderBone);
+    skeletonParts.push(shoulderBone);
 
     // Upper Arm (Biceps & Triceps)
     const upperArm = new THREE.Group();
@@ -571,7 +576,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     );
     humerus.position.set(0, -0.135, 0);
     upperArm.add(humerus);
-    skeletonGroup.add(humerus);
+    skeletonParts.push(humerus);
 
     // Elbow Joint
     const elbow = new THREE.Group();
@@ -582,7 +587,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     // Elbow Joint Bone
     const elbowBone = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 12), boneMat);
     elbow.add(elbowBone);
-    skeletonGroup.add(elbowBone);
+    skeletonParts.push(elbowBone);
 
     // Forearm
     const forearmMesh = createOrganicCapsule(0.055, 0.038, 0.26, skinMat, 1.05, 0.9);
@@ -597,7 +602,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     );
     radiusBone.position.set(0.012, -0.13, 0);
     elbow.add(radiusBone);
-    skeletonGroup.add(radiusBone);
+    skeletonParts.push(radiusBone);
 
     // Wrist & Hand
     const hand = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.11, 0.075), skinMat);
@@ -628,7 +633,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     const femoralHead = new THREE.Mesh(new THREE.SphereGeometry(0.042, 14, 14), boneMat);
     femoralHead.position.set(0, 0, 0);
     hip.add(femoralHead);
-    skeletonGroup.add(femoralHead);
+    skeletonParts.push(femoralHead);
 
     // Gluteus Maximus Sculpted Muscle
     const gluteGeom = new THREE.SphereGeometry(0.11, 20, 20);
@@ -665,7 +670,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     );
     femur.position.set(0, -0.21, 0);
     thigh.add(femur);
-    skeletonGroup.add(femur);
+    skeletonParts.push(femur);
 
     // Rectus Femoris & Vastus Lateralis (Quadricep front sweep)
     const quadFront = new THREE.Mesh(
@@ -705,13 +710,13 @@ export function createDetailedHumanModel(): HumanRigResult {
     // Knee Bone Joint & Patella
     const kneeJointBone = new THREE.Mesh(new THREE.SphereGeometry(0.038, 14, 14), boneMat);
     knee.add(kneeJointBone);
-    skeletonGroup.add(kneeJointBone);
+    skeletonParts.push(kneeJointBone);
 
     const patella = new THREE.Mesh(new THREE.SphereGeometry(0.032, 14, 14), boneMat);
     patella.position.set(0, 0, 0.06);
     patella.scale.set(1, 1.2, 0.6);
     knee.add(patella);
-    skeletonGroup.add(patella);
+    skeletonParts.push(patella);
 
     // Calf & Lower Leg
     const calfMesh = createOrganicCapsule(0.075, 0.046, 0.42, skinMat, 1.0, 1.15);
@@ -726,7 +731,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     );
     tibia.position.set(0, -0.21, 0.015);
     knee.add(tibia);
-    skeletonGroup.add(tibia);
+    skeletonParts.push(tibia);
 
     // Calf Muscle Heatmap
     const calfHeat = new THREE.Mesh(
@@ -749,7 +754,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     const footBone = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.028, 0.18), boneMat);
     footBone.position.set(0, -0.42, 0.065);
     knee.add(footBone);
-    skeletonGroup.add(footBone);
+    skeletonParts.push(footBone);
   }
 
   // Normalise to the same contract loadHumanoidRig() guarantees: a figure
@@ -800,7 +805,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     muscleMeshes,
     heatmapMeshes,
     skeletonGroup,
-    skeletonParts: [],
+    skeletonParts,
     skinMeshes,
     clothingMeshes,
     materials: {

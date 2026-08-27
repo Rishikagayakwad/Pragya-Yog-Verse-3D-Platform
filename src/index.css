@@ -4,27 +4,35 @@
 
 @layer base {
   :root {
+    --brand-green: #00381F;
+    --brand-terracotta: #944426;
+    --brand-burgundy: #620513;
+    --brand-olive: #9D9D48;
+    --brand-cream: #F5EFE5;
+    --brand-cream-light: #FAF6F0;
+    --brand-dark: #272727;
+    --brand-gold: #D9AE29;
+    --brand-surface: #FFFFFF;
+    --brand-border: rgba(0, 56, 31, 0.14);
+
     --bg-main: #F5EFE5;
-    --bg-deep: #00381F;
-    --detail-1: #944426;
-    --detail-2: #620513;
-    --bg-section: #9D9D48;
     --text-main: #272727;
-    --highlight: #D9AE29;
-    --surface-card: rgba(255, 255, 255, 0.7);
-    --surface-border: rgba(0, 56, 31, 0.12);
   }
 
   .dark {
-    --bg-main: #06140e;
-    --bg-deep: #F5EFE5;
-    --detail-1: #c96541;
-    --detail-2: #9e1b2f;
-    --bg-section: #0a2118;
+    --brand-green: #004d2b;
+    --brand-terracotta: #b85732;
+    --brand-burgundy: #850b1d;
+    --brand-olive: #b3b355;
+    --brand-cream: #081a10;
+    --brand-cream-light: #0d2618;
+    --brand-dark: #F5EFE5;
+    --brand-gold: #D9AE29;
+    --brand-surface: #0a2115;
+    --brand-border: rgba(217, 174, 41, 0.22);
+
+    --bg-main: #04120a;
     --text-main: #F5EFE5;
-    --highlight: #D9AE29;
-    --surface-card: rgba(7, 25, 18, 0.9);
-    --surface-border: rgba(217, 174, 41, 0.25);
   }
 }
 
@@ -56,14 +64,29 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 56, 31, 0.2);
+  background: rgba(0, 56, 31, 0.25);
   border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(217, 174, 41, 0.3);
+  background: rgba(217, 174, 41, 0.35);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 68, 38, 0.5);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(217, 174, 41, 0.45);
+  border-radius: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(217, 174, 41, 0.8);
 }
 
 /* Smooth Canvas container styling */

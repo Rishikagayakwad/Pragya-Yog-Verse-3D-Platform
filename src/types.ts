@@ -82,20 +82,55 @@ export interface ChakraInfo {
   frequency: number; // Hz for sound resonance
 }
 
+export interface BoneInfo {
+  id: string;
+  name: string;
+  latinName: string;
+  category: 'Spine' | 'Pelvis' | 'Lower Limb' | 'Upper Limb' | 'Thorax' | 'Skull';
+  position3D: [number, number, number];
+  attachTo?: RigJointSlot;
+  description: string;
+  alignmentCue: string;
+}
+
+export type PlaybackSpeed = 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2;
+export type LoopMode = 'asana' | 'step' | 'once';
+
+export interface PoseJointAngles {
+  torsoAngle: [number, number, number];
+  headAngle: [number, number, number];
+  leftArm: [number, number, number];
+  rightArm: [number, number, number];
+  leftForearm: [number, number, number];
+  rightForearm: [number, number, number];
+  leftLeg: [number, number, number];
+  rightLeg: [number, number, number];
+  leftShin: [number, number, number];
+  rightShin: [number, number, number];
+  elevation: number;
+  rotationY: number;
+}
+
 export interface AsanaStep {
   stepNumber: number;
   title: string;
   subtitle: string;
   instruction: string;
-  breathCue: 'Inhale' | 'Exhale' | 'Hold' | 'Natural';
+  breathCue: 'Inhale' | 'Exhale' | 'Hold' | 'Natural' | 'Internal Retention' | 'External Retention';
   durationSeconds: number;
+  startTime?: number;
+  endTime?: number;
   drishti: string; // Gaze point
+  technique?: string;
+  position?: string;
   alignmentTips: string[];
   commonMistake: string;
   modification: string;
   cameraTarget: [number, number, number];
   cameraPosition: [number, number, number];
   highlightedMuscles: string[];
+  highlightedBones?: string[];
+  stepPoseParameters?: PoseJointAngles;
 }
 
 export interface BreathPhase {
