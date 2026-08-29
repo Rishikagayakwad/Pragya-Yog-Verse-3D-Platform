@@ -402,7 +402,7 @@ export const ASANAS: Asana[] = [
           rightForearm: [0, 0, 0],
           leftLeg: [0.2, 0.45, 0.72],
           rightLeg: [-0.15, -0.25, -0.62],
-          leftShin: [-1.35, 0, 0],
+          leftShin: [-0.45, 0, 0],
           rightShin: [-0.06, 0, 0],
           elevation: -0.22,
           rotationY: 0.3

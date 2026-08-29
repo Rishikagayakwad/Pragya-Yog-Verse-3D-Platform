@@ -115,6 +115,46 @@ const authoredQuat = new THREE.Quaternion();
 const basisInverse = new THREE.Quaternion();
 const targetQuat = new THREE.Quaternion();
 const restQuat = new THREE.Quaternion();
+const groundProbe = new THREE.Vector3();
+
+/** How far a contact bone sits above the sole it represents. */
+const GROUND_CLEARANCE = 0.02;
+
+interface GroundState {
+  humanGroup: THREE.Group;
+  groundBones: THREE.Object3D[];
+  basePositionY: number;
+  groundOffset: number;
+}
+
+/**
+ * Settles the posed figure onto the mat.
+ *
+ * Posing is forward-kinematic with no IK, so bending a knee swings the shin
+ * backwards and lifts the foot rather than lowering the hips — the body ends up
+ * hovering. Rather than hand-tuning an elevation for every asana to compensate,
+ * this measures whichever contact bone currently sits lowest and drops the
+ * figure until it rests on the mat. One set of angles then reads correctly for
+ * a standing lunge, a kneeling fold and a hands-down inversion alike.
+ *
+ * `damping` of 1 lands it exactly this frame; a smaller value eases it there,
+ * so a pose change settles rather than snapping.
+ */
+function settleOnMat(state: GroundState, damping: number): void {
+  if (state.groundBones.length === 0) return;
+
+  state.humanGroup.updateMatrixWorld(true);
+
+  let lowest = Infinity;
+  for (const bone of state.groundBones) {
+    bone.getWorldPosition(groundProbe);
+    if (groundProbe.y < lowest) lowest = groundProbe.y;
+  }
+  if (lowest === Infinity) return;
+
+  const matSurface = state.basePositionY + GROUND_CLEARANCE;
+  state.groundOffset += (matSurface - lowest) * damping;
+}
 
 /**
  * Turns an authored angle into the rotation a specific bone should hold.
@@ -209,6 +249,9 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
     targetElevation: number;
     currentElevation: number;
     basePositionY: number;
+    groundBones: THREE.Object3D[];
+    /** Correction that settles the posed figure onto the mat. */
+    groundOffset: number;
     targetPoseRotationY: number;
     currentPoseRotationY: number;
     dataLayers: DataLayers | null;
@@ -667,6 +710,8 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
       targetElevation: 0,
       currentElevation: 0,
       basePositionY: platformHeight + matHeight,
+      groundBones: humanRig.groundBones,
+      groundOffset: 0,
       targetPoseRotationY: 0,
       currentPoseRotationY: 0,
       dataLayers: null,
@@ -710,6 +755,8 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
           state.heatmapMeshes = loaded.heatmapMeshes;
           state.skeletonGroup = loaded.skeletonGroup;
           state.skeletonParts = loaded.skeletonParts;
+          state.groundBones = loaded.groundBones;
+          state.groundOffset = 0;
           state.skinMeshes = loaded.skinMeshes;
           state.clothingMeshes = loaded.clothingMeshes;
 
@@ -730,6 +777,14 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
           });
           state.currentElevation = state.targetElevation;
           state.currentPoseRotationY = state.targetPoseRotationY;
+          state.humanGroup.position.y =
+            state.basePositionY + state.currentElevation + state.groundOffset;
+          state.humanGroup.updateMatrixWorld(true);
+
+          // Land it on the mat immediately rather than easing down from mid-air.
+          settleOnMat(state, 1);
+          state.humanGroup.position.y =
+            state.basePositionY + state.currentElevation + state.groundOffset;
           state.humanGroup.updateMatrixWorld(true);
 
           // Markers were parented to the old rig's bones, so rebuild them
@@ -779,7 +834,8 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
       state.humanGroup.rotation.y = state.currentRotation.y + state.currentPoseRotationY;
       state.humanGroup.rotation.x = state.currentRotation.x;
-      state.humanGroup.position.y = state.basePositionY + state.currentElevation;
+      state.humanGroup.position.y =
+        state.basePositionY + state.currentElevation + state.groundOffset;
 
       // Smooth Camera Damping
       state.currentCameraPos.lerp(state.targetCameraPos, 0.07);
@@ -813,6 +869,9 @@ export const YogaHumanCanvas: React.FC<YogaHumanCanvasProps> = ({
 
         part.quaternion.slerp(targetQuat, 0.1);
       });
+
+      // Ease the figure onto the mat as the pose changes.
+      settleOnMat(state, 0.2);
 
       elapsed += delta;
       state.dataLayers?.update(elapsed);

@@ -5,6 +5,7 @@ import { MODEL_TARGET_HEIGHT } from '../../config/model';
 import {
   POSE_JOINTS,
   POSE_JOINT_CHILD,
+  normalizeBoneName,
   resolveBoneMap,
   type PoseJoint,
 } from './rigJoints';
@@ -251,6 +252,28 @@ function buildSkeletonFromBones(root: THREE.Object3D): THREE.Object3D[] {
   return parts;
 }
 
+/**
+ * The bones that can plausibly touch the mat, used to sit the figure on it.
+ *
+ * Posing is forward-kinematic with no IK, so bending a knee swings the shin
+ * back and lifts the foot rather than lowering the hips — the figure ends up
+ * hovering. Rather than hand-tuning an elevation per asana to compensate, the
+ * studio measures whichever of these sits lowest and rests it on the mat.
+ *
+ * Hands and knees are included deliberately: Downward Dog stands on its hands,
+ * and Child's Pose rests on its shins.
+ */
+function collectGroundBones(nodesByName: Map<string, THREE.Object3D>): THREE.Object3D[] {
+  const wanted =
+    /^(Left|Right)(Toe_End|ToeBase|Foot|Hand|Leg|ForeArm)$|^(Hips|Spine)$/;
+
+  const bones: THREE.Object3D[] = [];
+  for (const [rawName, node] of nodesByName) {
+    if (wanted.test(normalizeBoneName(rawName))) bones.push(node);
+  }
+  return bones;
+}
+
 function enhanceMaterial(material: THREE.Material): void {
   const standard = material as THREE.MeshStandardMaterial;
   if (standard.isMeshStandardMaterial) {
@@ -436,6 +459,7 @@ export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
       heatmapMeshes: {},
       skeletonGroup,
       skeletonParts,
+      groundBones: collectGroundBones(nodesByName),
       skinMeshes,
       clothingMeshes: [],
       materials: {
@@ -492,6 +516,7 @@ export async function loadHumanoidRig(url: string): Promise<HumanRigResult> {
     heatmapMeshes: {},
     skeletonGroup: new THREE.Group(),
     skeletonParts: buildSkeletonFromBones(model),
+    groundBones: collectGroundBones(nodesByName),
     skinMeshes,
     clothingMeshes: [],
     materials: {

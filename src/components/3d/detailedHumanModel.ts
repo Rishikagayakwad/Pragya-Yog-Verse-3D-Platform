@@ -29,6 +29,13 @@ export interface HumanRigResult {
    * under skeletonGroup. Empty for this rig, populated for a loaded GLB.
    */
   skeletonParts: THREE.Object3D[];
+  /**
+   * Bones that may rest on the mat, used to sit the figure on it rather than
+   * letting forward kinematics leave it hovering. Empty here: this rig is
+   * already normalised with its feet at y = 0 and its authored elevations were
+   * tuned against that.
+   */
+  groundBones: THREE.Object3D[];
   skinMeshes: THREE.Mesh[];
   clothingMeshes: THREE.Mesh[];
   materials: {
@@ -806,6 +813,7 @@ export function createDetailedHumanModel(): HumanRigResult {
     heatmapMeshes,
     skeletonGroup,
     skeletonParts,
+    groundBones: [],
     skinMeshes,
     clothingMeshes,
     materials: {
